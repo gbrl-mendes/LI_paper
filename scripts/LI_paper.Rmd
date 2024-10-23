@@ -244,7 +244,7 @@ curated_full_tbl <- left_join(pre_filt_tbl, metadata_tbl,
 # View(curated_full_tbl)
 ```
 
-## Suplementar tables
+## Suplementary tables
 ```{r, eval=FALSE,echo=FALSE}
 ## Suplementar table A ----
 
@@ -403,7 +403,9 @@ grouped_sampled_filt_tbl <- curated_full_tbl %>%
           "Sample abundance" = `Abd total`,
           "RRA" = sum(`RRA na amostra`),
           "ASVs" = length(unique(`ASV header`)),
-          "OTUs" = length(unique(OTU))) %>% 
+          "ASV header" = `ASV header`,
+          "OTUs" = length(unique(OTU)),
+          "OTU number" = OTU) %>% 
   unique()
 
 # View(grouped_sampled_filt_tbl)
@@ -528,6 +530,90 @@ grouped_filt_tbl_tbl %>%
 
 write.csv(wider_filt_tbl, paste0(tbl_path, "/wider_dt_filt_2024.csv"))
 ```
+
+
+## Basic stats
+```{r, eval=FALSE,echo=FALSE}
+options(scipen = 999)
+
+# Reads, ASVs and Species by Curated ID and Order ----
+
+## Raw stats
+
+curated_full_tbl %>% 
+  group_by(`Class (BLASTn)`) %>% 
+  reframe(
+    "Total reads" = sum(Abundance), 
+    "ASVs" = n_distinct(`ASV (Sequence)`),
+    "OTUs" = n_distinct(OTU),
+    "Orders" = length(unique(`Order (BLASTn)`)),
+    "Families" = length(unique(`Family (BLASTn)`)),
+    "Genus" = length(unique(`Genus (BLASTn)`)),
+    "Species" = length(unique(`Curated ID`[grepl("^[A-Za-z]+\\s[A-Za-z]+$", `Curated ID`) & !grepl("sp\\.", `Curated ID`)])),
+    "Nspecies" = length(unique(`Curated ID`)) - Species
+  ) %>% 
+  unique() %>% 
+  View()
+
+## Stats Actinopteri
+grouped_sampled_filt_tbl %>% 
+  reframe(
+    "Total reads" = sum(Reads), 
+    "ASVs" = n_distinct(`ASV header`),
+    "OTUs" = n_distinct(`OTU number`),
+    "Orders" = length(unique(Order)),
+    "Families" = length(unique(Family)),
+    "Genus" = length(unique(Genus)),
+    "Species" = length(unique(`Curated ID`[grepl("^[A-Za-z]+\\s[A-Za-z]+$", `Curated ID`) & !grepl("sp\\.", `Curated ID`)])),
+    "Nspecies" = length(unique(`Curated ID`)) - Species
+  ) %>% 
+  unique() %>% 
+  View()
+
+## Grouped by Curated ID
+grouped_sampled_filt_tbl %>% 
+  mutate("Total reads" = sum(Reads)) %>% 
+  group_by(`Curated ID`) %>% 
+  reframe("Total species reads" = sum(Reads),
+            "Relative abundance for species" = `Total species reads` / `Total reads` * 100,
+          "Order" = Order) %>% 
+  relocate(Order, `Curated ID`) %>% 
+  unique() %>% 
+  View()
+
+## Grouped by Order
+grouped_sampled_filt_tbl %>% 
+  mutate("Total reads" = sum(Reads)) %>% 
+  group_by(Order) %>% 
+  reframe("Total order reads" = sum(Reads),
+          "Relative abundance for order" = `Total order reads` / `Total reads` * 100,
+          "Total ASVs" = sum(ASVs),
+          "Total Species" = n_distinct(`Curated ID`)) %>% 
+  unique() %>% 
+  View()
+
+# Reads, ASVs and Species by Filter ----
+
+## Grouped by Filter
+grouped_sampled_filt_tbl %>% 
+  filter(Expedition %in% "Novembro 2021") %>%
+  mutate("Total reads" = sum(Reads)) %>% 
+  group_by(Filter, 
+           # `Curated ID`
+           ) %>% 
+  reframe("Total filter reads" = sum(Reads),
+          "Relative abundance for filter" = `Total filter reads` / `Total reads` * 100,
+          "Total ASVs" = sum(ASVs),
+          "Total orders" =  n_distinct(Order),
+          "Total families" =  n_distinct(Family),
+          "Total Species" = n_distinct(`Curated ID`),
+          "Total Samples" = n_distinct(Sample)) %>% 
+  unique() %>% 
+  View()
+
+
+```
+
 
 ## Exploratory tables
 
@@ -693,9 +779,9 @@ View(unique_counts)
             position = position_fill(vjust = 0.5),
             color = "black") +
   facet_grid(rows = vars(Year_Level),
-  space = "free", 
-  scales = "free",
-  drop = TRUE) +
+             space = "free",
+             scales = "free",
+             drop = TRUE) +
   coord_flip() + #virando 90o o grafico
   guides(fill = guide_legend("Orders")) + ## alterar o titulo da legenda 
   theme(panel.grid.major = element_line(color = "grey",
@@ -806,7 +892,6 @@ ggsave(plot = fish_ord_all,
                                "#ed5565ff",
                                "#48cfadff",                                  
                                "#ec87c0ff")) +
-  # labs(x = "Sample sites", y = "Proportion") 
   labs(x = "Year and water level", y = "Proportion") 
 
 fish_ord_all
@@ -1211,7 +1296,6 @@ ggsave(plot = id_prop_MCE_STX,
   {
     # All Years (only MCE Filters) HoH suggestions
     tile_all <- grouped_filt_tbl %>%
-      # filter(RRA >= 0.01) %>%
       mutate(`Curated ID` = factor(`Curated ID`, levels = rev(spp_Levels))) %>%
       # mutate(Expedition = factor(Expedition, levels = Expeditions)) %>%
       # mutate(Sample = factor(Sample, levels = samples)) %>% 
@@ -1230,9 +1314,9 @@ ggsave(plot = id_prop_MCE_STX,
                  x = Year_Level,
                  fill = RRA)) +
       geom_tile() +
-      geom_text(aes(label= sprintf("%0.2f", round(RRA, digits = 2))), # exibindo os valores de RRA dentro dos tiles para facilitar a discussao (opcional)
-      stat = "identity",
-      colour = "black", size = 4) +
+      # geom_text(aes(label= sprintf("%0.2f", round(RRA, digits = 2))), # exibindo os valores de RRA dentro dos tiles para facilitar a discussao (opcional)
+      # stat = "identity",
+      # colour = "black", size = 4) +
       facet_grid(cols = vars(Site),
                  # cols = vars(Year_Level),
                  rows = vars(Order),
@@ -1304,14 +1388,11 @@ ggsave(plot = id_prop_MCE_STX,
     
     ggsave(plot = tile_all,
            filename = paste("/home/gabriel/projetos/LI_paper/results/figures/",
-                            # "tile_20-22_MCE", "-", Sys.Date(), ".pdf", sep = ""),
                             "tile_20-22_MCE_HoH", "-", Sys.Date(), ".pdf", sep = ""),
            device = "pdf", units = "cm", height = 20, width = 30, dpi = 600)
     
-    
     # MCE versus Sterivex HoH suggestions
-    tile_mce_vs_sterivex <- grouped_filt_tbl %>%
-      # filter(RRA >= 0.01) %>%
+    tile_mce_vs_sterivex <- grouped_sampled_filt_tbl %>%
       mutate(`Curated ID` = factor(`Curated ID`, levels = rev(spp_levels))) %>%
       mutate(Site = factor(Site)) %>% 
       mutate(Order = factor(Order)) %>%
@@ -1320,13 +1401,16 @@ ggsave(plot = id_prop_MCE_STX,
         Year == "2021" ~ "2021 - Low",
         Year == "2022" ~ "2022 - Full"
       )) %>%
-      filter(Level %in% c("Low")) %>%
+      filter(Expedition %in% c("Novembro 2021")) %>%
       ggplot(aes(y = `Curated ID`, 
                  group = `Curated ID`,
                  x = Filter,
                  # x = Site,
                  fill = RRA)) +
       geom_tile() +
+      # geom_text(aes(label= sprintf("%0.2f", round(RRA, digits = 2))),
+      #           stat = "identity",
+      #           colour = "black", size = 4) +
       facet_grid(cols = vars(Site),
                  rows = vars(Order),
                  space = "free", 
@@ -1365,7 +1449,7 @@ ggsave(plot = id_prop_MCE_STX,
       theme(
         panel.background = element_blank(),
         panel.grid.major = element_line(color = "grey",
-                                        size = 0.2,
+                                        linewidth = 0.2,
                                         linetype = 1),
         axis.ticks = element_blank(),
         axis.text = element_text(color = "black"),
@@ -1401,22 +1485,107 @@ ggsave(plot = id_prop_MCE_STX,
            device = "pdf", units = "cm", height = 20, width = 30, dpi = 600)
     
     # Empty versus Full (SBG) HoH suggestions
-    tile_sbg_full_vs_low <- grouped_filt_tbl %>%
-      # filter(RRA >= 0.01) %>%
-      filter(Filter %in% c("MCE")) %>%
+    # tile_sbg_full_vs_low <- grouped_sampled_filt_tbl %>%
+    #   # filter(RRA >= 0.01) %>%
+    #   filter(Filter %in% c("MCE")) %>%
+    #   mutate(`Curated ID` = factor(`Curated ID`, levels = rev(spp_Levels))) %>% 
+    #   mutate(Site = factor(Site)) %>%
+    #   mutate(Order = factor(Order)) %>%
+    #   group_by(`Curated ID`, Site, Order, Level) %>%   # Agrupa por expedição, Curated ID e Point
+    #   ggplot(aes(y = `Curated ID`,
+    #              group = `Curated ID`,
+    #              x = Level,
+    #              fill = RRA)) +
+    #   geom_tile() +
+    #   # geom_text(aes(label= sprintf("%0.2f", round(RRA, digits = 2))), # exibindo os valores de RRA dentro dos tiles para facilitar a discussao (opcional)
+    #   # stat = "identity",
+    #   # colour = "black", size = 4) +
+    #   facet_grid(cols = vars(Site),
+    #              rows = vars(Order),
+    #              space = "free",
+    #              scales = "free",
+    #              drop = TRUE) +
+    #         scale_fill_gradientn(name = "RRA (%)",
+    #                        # colours = c("white", "yellow", "green", "darkgreen", "blue"),
+    #                        colours = rev(c("#30123BFF", "#4662D7FF", "darkgreen", "#72FE5EFF", "#C7EF34FF",
+    #                                        "#FABA39FF", "#F66B19FF", "#CB2A04FF", "#7A0403FF")),
+    #                        # colours = c("white", "#FDE725FF", "#6DCD59FF", "#35B779FF", "#3E4A89FF"),
+    #                        # colours = c("#440154FF", "#482878FF", "#3E4A89FF", "#31688EFF",
+    #                        #             "#26828EFF", "#1F9E89FF", "#35B779FF", "#6DCD59FF",
+    #                        #             "#B4DE2CFF", "#FDE725FF"),
+    #                        values = scales::rescale(c(0, 0.01, 0.05, 0.25, 1, 2.5, 5, 10, 25, 50, 75, 100)),
+    #                        breaks = c(0, 0.01, 0.05, 0.25, 1.00, 2.50, 5.00, 10.00, 25.00, 50.00, 100.00), # Quebras exatas
+    #                        labels = function(x) scales::number(x, accuracy = 0.01, trim = FALSE), # Precisão exata
+    #                        limits = c(0.01, 100),
+    #                        na.value = "#7A0403FF",
+    #                        trans = "log10"
+    #   ) +
+    #   scale_colour_gradientn(name = "RRA (%)",
+    #                          # colours = rev(c("white", "yellow", "green", "darkgreen", "blue")),
+    #                          colours = rev(c("#30123BFF", "#4662D7FF", "darkgreen", "#72FE5EFF", "#C7EF34FF",
+    #                                          "#FABA39FF", "#F66B19FF", "#CB2A04FF", "#7A0403FF")),
+    #                          # colours = rev(c("white", "#FDE72C5FF", "#6DCD59FF", "#35B779FF", "#3E4A89FF")),
+    #                          # colours = c("#440154FF", "#482878FF", "#3E4A89FF", "#31688EFF",
+    #                          #             "#26828EFF", "#1F9E89FF", "#35B779FF", "#6DCD59FF",
+    #                          #             "#B4DE2CFF", "#FDE725FF"),
+    #                          values = scales::rescale(c(0, 0.01, 0.05, 0.25, 1, 2.5, 5, 10, 25, 50, 75, 100)),
+    #                        breaks = c(0, 0.01, 0.05, 0.25, 1.00, 2.50, 5.00, 10.00, 25.00, 50.00, 100.00), # Quebras exatas
+    #                          labels = function(x) scales::number(x, accuracy = 0.01, trim = FALSE), # Precisão exata
+    #                          limits = c(0.01, 100),
+    #                          na.value = "#7A0403FF",
+    #                          trans = "log10") +
+    #   theme_minimal() +
+    #   theme(panel.background = element_blank(), 
+    #         panel.grid.major = element_line(color = "grey",
+    #                                         size = 0.2,
+    #                                         linetype = 1),
+    #     axis.ticks = element_blank(),
+    #     axis.text = element_text(color = "black"),
+    #     axis.title = element_text(color = "black", size = rel(1.2)),
+    #     legend.text = element_text(color = "black"),
+    #     legend.title = element_text(color = "black", size = rel(1.2)),
+    #     plot.title = element_text(color = "black", size = rel(1.5)),
+    #     plot.subtitle = element_text(color = "black", size = rel(1.2)),
+    #     strip.background = element_rect(fill = "#e4e4e4"),
+    #     strip.text = element_text(color = "black", size = rel(1.2))) +
+    #   theme(
+    #     plot.title = element_text(size = 20, face = "bold"),
+    #     # axis.text.x = element_text(size = 14, angle = 20, hjust = 1, vjust = 1),
+    #     axis.text.x = element_text(size = 14, vjust = 1),
+    #     axis.text.y = element_text(size = 14, face = "italic"),
+    #     axis.title.x = element_text(size = 14, face = "bold"),
+    #     axis.title.y = element_text(size = 14, face = "bold"),
+    #     strip.text = element_text(size = 14, face = "bold"),
+    #     strip.text.y = element_text(angle=0),
+    #     legend.text = element_text(size = 13),
+    #     legend.title = element_text(size = 14, face = "bold", margin = margin(b = 10)),
+    #     legend.key.height = unit(3, 'cm')) +
+    #   labs(fill = "RRA (%)",
+    #        x = "Sample sites",
+    #        y = "Species")
+    #   
+    # tile_sbg_full_vs_low
+    # 
+    #  ggsave(plot = tile_sbg_full_vs_low, 
+    #        filename = paste("/home/gabriel/projetos/LI_paper/results/figures/",
+    #                         "tile_sbg_Full_vs_Low_HoH", "-", Sys.Date(), ".pdf", sep = ""),
+    #        device = "pdf", units = "cm", height = 20, width = 30, dpi = 600)
+     
+     # Tile all samples
+    tile_all_samples <- grouped_sampled_filt_tbl %>%
       mutate(`Curated ID` = factor(`Curated ID`, levels = rev(spp_Levels))) %>% 
       mutate(Site = factor(Site)) %>%
       mutate(Order = factor(Order)) %>%
       group_by(`Curated ID`, Site, Order, Level) %>%   # Agrupa por expedição, Curated ID e Point
       ggplot(aes(y = `Curated ID`,
                  group = `Curated ID`,
-                 x = Level,
+                 x = Filter,
                  fill = RRA)) +
       geom_tile() +
       # geom_text(aes(label= sprintf("%0.2f", round(RRA, digits = 2))), # exibindo os valores de RRA dentro dos tiles para facilitar a discussao (opcional)
       # stat = "identity",
       # colour = "black", size = 4) +
-      facet_grid(cols = vars(Site),
+      facet_grid(cols = vars(Sample),
                  rows = vars(Order),
                  space = "free",
                  scales = "free",
@@ -1480,25 +1649,26 @@ ggsave(plot = id_prop_MCE_STX,
            x = "Sample sites",
            y = "Species")
       
-    tile_sbg_full_vs_low
+    tile_all_samples
     
-     ggsave(plot = tile_sbg_full_vs_low, 
+     ggsave(plot = tile_all_samples, 
            filename = paste("/home/gabriel/projetos/LI_paper/results/figures/",
-                            "tile_sbg_Full_vs_Low_HoH", "-", Sys.Date(), ".pdf", sep = ""),
+                            "tile_all_samples", "-", Sys.Date(), ".pdf", sep = ""),
            device = "pdf", units = "cm", height = 20, width = 30, dpi = 600)
+     
   }
 }
 
 # Venn diagram 
 {
   # Filtering
-  resume_venn <- grouped_filt_tbl %>%
-    select(`Curated ID`, Genus, Family, Order, Filter, Level) %>%
+  resume_venn <- grouped_sampled_filt_tbl %>%
+    select(`Curated ID`, Genus, Family, Order, Filter, Level, Expedition, Site) %>%
     unique()
   
   # 1a. Common spp between MCE and Sterivex
   spp_comm <- resume_venn %>% 
-    filter(Level %in% "Low") %>% 
+    filter(Expedition %in% "Novembro 2021") %>% 
     group_by(`Curated ID`) %>% # Trocar para spp, genero, familia e ordem
     summarise(n_filtros = n_distinct(Filter)) %>%
     filter(n_filtros >= 2) %>%
@@ -1507,7 +1677,7 @@ ggsave(plot = id_prop_MCE_STX,
   
   # 1b. Exclusive spp MCE and Sterivex
   spp_diff <- resume_venn %>%
-    filter(Level %in% "Low") %>% 
+    filter(Expedition %in% "Novembro 2021") %>% 
     group_by(`Curated ID`) %>% # Trocar para spp, genero, familia e ordem
     summarise(MCE_count = sum(as.integer(Filter == "MCE")),
               STX_count = sum(as.integer(Filter == "Sterivex")),
@@ -1535,6 +1705,28 @@ ggsave(plot = id_prop_MCE_STX,
               High_only = Low_count == 0 & High_count >= 1) %>% 
     ungroup()
   View(spp_diff_2)
+  
+    # 3a. Common spp between Sample sites
+  spp_comm_3 <- resume_venn %>% 
+    group_by(`Curated ID`) %>% # Trocar para spp, genero, familia e ordem
+    summarise(n_Level = n_distinct(Site)) %>%
+    filter(n_Level >= 2) %>%
+    select(`Curated ID`) # Trocar para spp, genero, familia e ordem
+  View(spp_comm_3)
+  
+  # 3b. Exclusive spp Sample sites
+  spp_diff_3 <- resume_venn %>%
+    group_by(`Curated ID`) %>% # Trocar para spp, genero, familia e ordem
+    summarise(Prainha_count = sum(as.integer(Site == "Prainha")),
+              Ponte_count = sum(as.integer(Site == "Ponte")),
+              Barragem_count = sum(as.integer(Site == "Barragem")),
+              Fundacao_count = sum(as.integer(Site == "Fundação")),
+              Prainha_only = Prainha_count >= 1 & Ponte_count == 0 & Barragem_count == 0 & Fundacao_count == 0,
+              Ponte_only = Ponte_count >= 1 & Prainha_count == 0 & Barragem_count == 0 & Fundacao_count == 0,
+              Barragem_only = Barragem_count >= 1 & Prainha_count == 0 & Ponte_count == 0 & Fundacao_count == 0,
+              Fundacao_only = Fundacao_count >= 1 & Prainha_count == 0 & Ponte_count == 0 & Barragem_count == 0) %>% 
+    ungroup()
+  View(spp_diff_3)
 }
 ```
 
@@ -2427,11 +2619,9 @@ ggplot(aes(x = Individuals,
     theme_minimal() +
     theme(panel.grid.major = element_line(color = "grey", size = 0.4),
           panel.grid.minor = element_line(color = "lightgrey", size = 0.1)) +
-    labs(x = "ASVs", y = "Riqueza de espécies") +
-    ylab(label = "Species richness") +
-    xlab(label = "Number of ASVs") +
-    ggtitle("Collector's curve MCE and Sterivex samples")
-
+    labs(x = "Species richness", 
+         y = "Number of ASVs",
+         title = "Collector's curve MCE and Sterivex samples")
 
 # All samples (Richness vs Samples)
 {
@@ -2552,7 +2742,12 @@ ggplot(aes(x = Individuals,
                          "Filter" = "All samples")
   
   ## Combining dataframes
-  combined_accum <- bind_rows(accum_mce_stx_df, accum_mce_df, accum_mce21_df, accum_stx_df, accum_all_df, )
+  combined_accum <- bind_rows(#accum_mce_stx_df, 
+                              # accum_mce_df,
+                              accum_mce21_df, 
+                              accum_stx_df
+                              # accum_all_df, 
+                              )
   
   combined_accum$Filter <- factor(combined_accum$Filter,
                                   levels = c("All samples",
@@ -2562,8 +2757,8 @@ ggplot(aes(x = Individuals,
                                              "Sterivex"))
   
   ## Plotting
-  collector_plot_all <-
-  combined_accum %>% 
+  collector_plot_all <- 
+    combined_accum %>% 
     ggplot(aes(x = Sites,
                y = Richness,
                color = Filter,
@@ -2590,10 +2785,10 @@ ggplot(aes(x = Individuals,
     theme_minimal() +
     theme(panel.grid.major = element_line(color = "grey", size = 0.4),
           panel.grid.minor = element_line(color = "lightgrey", size = 0.1)) +
-    labs(x = "ASVs", y = "Riqueza de espécies") +
-    ylab(label = "Species richness") +
-    xlab(label = "Number of samples") +
-    ggtitle("Collector's curve MCE and Sterivex samples") 
+    labs(x = "Number of samples", 
+         y = "Species richness",
+         # title = "Collector's curve MCE and Sterivex samples"
+         )
   
   collector_plot_all
   
@@ -2738,9 +2933,9 @@ ggplot(aes(x = Individuals,
     theme_minimal() +
     theme(panel.grid.major = element_line(color = "grey", size = 0.4),
           panel.grid.minor = element_line(color = "lightgrey", size = 0.1)) +
-    ylab(label = "Species richness") +
-    xlab(label = "Number of ASVs") +
-    ggtitle("Collector's curve MCE and Sterivex samples (ASVs)") 
+    labs(x = "Number of ASVs",
+         y = "Species richness",
+         title = "Collector's curve MCE and Sterivex samples (ASVs)") 
   
   collector_plot_all_ASVs
   
@@ -2768,8 +2963,7 @@ gsf_phyloseq <- grouped_sampled_filt_tbl %>%
               ) %>%
   mutate(across(everything(), replace_na, replace = 0)) %>% 
   # mutate_if(is.numeric, round) %>%
-  mutate_if(is.numeric, round) %>%
-  mutate_if(is.numeric, ~. * 10) %>% 
+  mutate_if(is.numeric, jaccarize) %>%
   as.data.frame() %>%
   `rownames<-`(.$`Curated ID`) %>% 
   select(-c("Curated ID")) %>% 
@@ -2831,36 +3025,36 @@ div_est_phylo <- estimate_richness(final_ps,
  div_stx_mce_plot <-
    div_est_phylo %>%
      # filter(Expedition %in% c("Novembro 2021")) %>%
-     filter(Indice %in% c("Observed",
-                          "Chao1",
-                          "Obs./Chao1",
-                          "Shannon",
-                          "Simpson")) %>%
-     ggplot(aes(y = Values,
-                x = Filter ,
-                fill = Filter,
-                alpha = 0.1)) +
-     geom_boxplot(col = "#282828",
-                  alpha = 1,
-                  linewidth = 0.3,
-                  outlier.shape = NA) +
-     geom_jitter(aes(col = Site,
-                     shape = Level),
-                 alpha = 0.75,
-                 height = 0,
-                 width = 0.25) +
-     facet_wrap(nrow = 1,
-                ~Indice,
-                scales = "free") +
-     theme_bw(base_size = 14) +
-     theme(axis.text.x = element_text(angle = 45,hjust = 1,vjust = 1),
-           axis.title = element_text(size = 14),
-           strip.text = element_text(size = 14)) +
-     scale_fill_manual(values = c("#f8e199", "#99c0d8")) +
-     scale_shape_manual(values = c("Full" = 16, "Low" = 4)) +
-     guides(fill = "none") +
-     xlab(label = "Filter type") +
-     ylab(label = "Value") 
+   filter(Indice %in% c("Observed",
+                        "Chao1",
+                        "Obs./Chao1",
+                        "Shannon",
+                        "Simpson")) %>%
+   ggplot(aes(y = Values,
+              x = Filter ,
+              fill = Filter,
+              alpha = 0.1)) +
+   geom_boxplot(col = "#282828",
+                alpha = 1,
+                linewidth = 0.3,
+                outlier.shape = NA) +
+   geom_jitter(aes(col = Site,
+                   shape = Level),
+               alpha = 0.75,
+               height = 0,
+               width = 0.25) +
+   facet_wrap(nrow = 1,
+              ~Indice,
+              scales = "free") +
+   theme_bw(base_size = 14) +
+   theme(axis.text.x = element_text(angle = 45,hjust = 1,vjust = 1),
+         axis.title = element_text(size = 14),
+         strip.text = element_text(size = 14)) +
+   scale_fill_manual(values = c("#f8e199", "#99c0d8")) +
+   scale_shape_manual(values = c("Full" = 16, "Low" = 4)) +
+   guides(fill = "none") +
+   labs(x = "Filter type",
+        y = "Value")
  
  div_stx_mce_plot
  
