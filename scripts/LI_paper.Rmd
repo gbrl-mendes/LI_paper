@@ -2237,24 +2237,24 @@ cores <- c("#f1c232",
                              fontface = "bold") +
 
   # Vetores das IDs
-  geom_segment(data = sig.spp.scrs, aes(x = 0,
-                                        xend = Dim1,
-                                        y = 0,
-                                        yend = Dim2),
-               arrow = arrow(length = unit(0.1, "cm")),
-               colour = "grey30",
-               alpha = 0.5,
-               lwd = 0.3) + #add vector arrows of significant species
+  # geom_segment(data = sig.spp.scrs, aes(x = 0,
+  #                                       xend = Dim1,
+  #                                       y = 0,
+  #                                       yend = Dim2),
+  #              arrow = arrow(length = unit(0.1, "cm")),
+  #              colour = "grey30",
+  #              alpha = 0.5,
+  #              lwd = 0.3) + #add vector arrows of significant species
 
   # Nomes das IDs
-  ggrepel::geom_text_repel(data = sig.spp.scrs,
-                           aes(x=Dim1, y=Dim2, label = IDs),
-                           size = 3.5,
-                           alpha = 0.75,
-                           direction = "both",
-                           segment.size = 0.25,
-                           segment.alpha = 0.1,
-                           max.overlaps = 25) +
+  # ggrepel::geom_text_repel(data = sig.spp.scrs,
+  #                          aes(x=Dim1, y=Dim2, label = IDs),
+  #                          size = 3.5,
+  #                          alpha = 0.75,
+  #                          direction = "both",
+  #                          segment.size = 0.25,
+  #                          segment.alpha = 0.1,
+  #                          max.overlaps = 25) +
   
   # Centroides
   geom_point(data = cent,
@@ -2770,17 +2770,17 @@ ggplot(aes(x = Individuals,
     geom_ribbon(aes(ymin = Richness - sd, ymax = Richness + sd), 
                 alpha = 0.15,
                 size = 0.1) +
-    scale_color_manual(values = c("#9C27B0",
-                                  "#4CAF50", 
+    scale_color_manual(values = c(# "#9C27B0",
+                                  # "#4CAF50", 
                                   "#F57F17", 
-                                  "#2196F3",
-                                  "#F44336" 
+                                  "#2196F3"
+                                  # "#F44336" 
                                   )) +  
-    scale_fill_manual(values = c("#673AB7",
-                                 "#005602",
-                                 "#F57F17",
-                                 "#0D47A1",
-                                 "#800020"
+    scale_fill_manual(values = c(# "#673AB7",
+                                 # "#005602",
+                                 "#F57F55",
+                                 "#0D47A1"
+                                 # "#800020"
                                  )) +
     theme_minimal() +
     theme(panel.grid.major = element_line(color = "grey", size = 0.4),
@@ -2792,8 +2792,8 @@ ggplot(aes(x = Individuals,
   
   collector_plot_all
   
-  ggsave(file = paste0(figs_path,"/", "collector_plot_STX-", Sys.Date(), ".pdf", collapse = ""),
-         plot = collector_plot_STX,
+  ggsave(file = paste0(figs_path,"/", "collector_plot_STX_MCE21-", Sys.Date(), ".pdf", collapse = ""),
+         plot = collector_plot_all,
          device = "pdf",
          width = 16,
          height = 12,
