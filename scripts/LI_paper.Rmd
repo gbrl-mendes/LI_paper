@@ -557,8 +557,15 @@ curated_full_tbl %>%
 
 ## Stats Actinopteri
 grouped_sampled_filt_tbl %>% 
+  View()
+
+grouped_sampled_filt_tbl %>% 
+  group_by(`Curated ID`) %>% 
+  mutate("Total reads" = sum(Reads)) %>%
+  ungroup() %>% 
   reframe(
-    "Total reads" = sum(Reads), 
+    # "Total reads" = sum(`Total reads`),
+    "Total reads" = `Total reads`,
     "ASVs" = n_distinct(`ASV header`),
     "OTUs" = n_distinct(`OTU number`),
     "Orders" = length(unique(Order)),
@@ -566,7 +573,7 @@ grouped_sampled_filt_tbl %>%
     "Genus" = length(unique(Genus)),
     "Species" = length(unique(`Curated ID`[grepl("^[A-Za-z]+\\s[A-Za-z]+$", `Curated ID`) & !grepl("sp\\.", `Curated ID`)])),
     "Nspecies" = length(unique(`Curated ID`)) - Species
-  ) %>% 
+  )  %>% 
   unique() %>% 
   View()
 
