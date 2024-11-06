@@ -406,7 +406,7 @@ grouped_sampled_filt_tbl <- curated_full_tbl %>%
           "OTUs" = length(unique(OTU)),
           ) 
 
-# View(grouped_sampled_filt_tbl)
+View(grouped_sampled_filt_tbl)
 
 # Is RRA correct?
 grouped_sampled_filt_tbl %>%
