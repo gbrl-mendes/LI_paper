@@ -391,22 +391,20 @@ grouped_sampled_filt_tbl <- curated_full_tbl %>%
   # calculating RRA by Sample
   group_by(`Curated ID`, Sample) %>%
   mutate("RRA na amostra" = (Abundance/`Abd total`*100)) %>% 
-  reframe("Site" = Site,
-          "Year" = Year,
-          "Expedition" = Expedition,
-          "Level" = Level,
-          "Filter" = Filter,
-          "Order" = `Order (BLASTn)`,
-          "Family" = `Family (BLASTn)`,
-          "Genus" = `Genus (BLASTn)`,
+  summarize("Site" = first(Site),
+          "Year" = first(Year),
+          "Expedition" = first(Expedition),
+          "Level" = first(Level),
+          "Filter" = first(Filter),
+          "Order" = first(`Order (BLASTn)`),
+          "Family" = first(`Family (BLASTn)`),
+          "Genus" = first(`Genus (BLASTn)`),
           "Reads" = sum(Abundance),
-          "Sample abundance" = `Abd total`,
+          "Sample abundance" = first(`Abd total`),
           "RRA" = sum(`RRA na amostra`),
           "ASVs" = length(unique(`ASV header`)),
-          "ASV header" = `ASV header`,
           "OTUs" = length(unique(OTU)),
-          "OTU number" = OTU) %>% 
-  unique()
+          ) 
 
 # View(grouped_sampled_filt_tbl)
 
@@ -444,11 +442,10 @@ grouped_filt_tbl <- filt_tbl %>%
 # View(grouped_filt_tbl_tbl)
 
 # Is RRA correct?
-grouped_filt_tbl_tbl %>%
+grouped_filt_tbl %>%
   group_by(Site, Level, Filter, Year) %>%
   summarise(total_RRA = sum(RRA, na.rm = TRUE)) %>%
   ungroup()
-
 
 # Tabela wider com os dados filtrados
 {
