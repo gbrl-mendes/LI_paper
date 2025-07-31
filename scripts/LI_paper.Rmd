@@ -25,7 +25,7 @@ editor_options:
 ```
 
 
-**This pipeline integrates public tools available for metagenomic analyses. To share or reproduce this content, please require authors' consent.**  
+**This pipeline integrates public tools available for metabarcoding analyses. To share or reproduce this content, please require authors' consent.**  
 **Contact:** gabrielmendesbrt@gmail.com 
 
 # Bioinformatics
@@ -34,17 +34,17 @@ editor_options:
 
 ```{r, eval=FALSE,echo=FALSE}
 # Loading libraries ----
-{ 
+{ library("tidyverse")
   library("Biostrings")
   library("DECIPHER")
   library("phyloseq")
   library("vegan")
-  library("tidyverse")
-  library("dplyr")
   library("readxl")
   library("ggpubr")
   library("ggplot2")
   library("ggsignif")
+  library("ggrepel")
+  library("openxlsx")
   }
 ```
 
@@ -153,9 +153,6 @@ blast_tax_less <- blast_tax %>%
            "Family (BLASTn)",
            "Genus (BLASTn)"))
          
-# raw_results_tbl %>% colnames() %>% paste0(collapse = '",\n"') %>% cat()
-# blast_tax_less %>% colnames() %>% paste0(collapse = '",\n"') %>% cat()
-
 raw_results_tbl <- raw_results_tbl %>%
   left_join(blast_tax_less,
             by = "ASV (Sequence)") %>% 
@@ -165,6 +162,30 @@ raw_results_tbl <- raw_results_tbl %>%
            "ASV Size (pb)")) %>% 
   unique() %>% 
   rename("Order (BLASTn)" = "Curated Order (BLASTn)")
+
+# Correcting family IDs february 10th 2025
+
+raw_results_tbl <- raw_results_tbl %>% 
+  mutate(`Family (BLASTn)` = 
+           ifelse(`Genus (BLASTn)` %in% c("Psalidodon",
+                                          "Moenkhausia",
+                                          "Astyanax",
+                                          "Hemigrammus",
+                                          "Oligosarcus"), 
+                  "Acestrorhamphidae",
+                  `Family (BLASTn)`)) %>% 
+  mutate(`Family (BLASTn)` = ifelse(`Genus (BLASTn)` %in% "Piabina",
+                                    "Stevardiidae",
+                                    `Family (BLASTn)`))
+
+# Correcting Hoplias IDs february 25th 2025
+
+raw_results_tbl <- raw_results_tbl %>%
+  mutate(`Curated ID` =
+           ifelse(`Curated ID` %in% c("Hoplias malabaricus",
+                                      "Hoplias intermedius"),
+                  "Hoplias sp.",
+                  `Curated ID`))
 
 # View(raw_results_tbl)
 
@@ -181,7 +202,7 @@ pre_filt_tbl <-
   filter(!(Sample %in% c("EM113_NEGPCR1", "EM135c4c5_NEGPCR1", "EM135c4c5_NEGPCR2", "EM149_NEGPCR1", 
                          "EM149_NEGPCR2", "EM156_NegPCR1", "S724_NEGPCR1", "br_jan_22", "br_nov21"))) %>% 
   # Filter(!(`Possible contamination` %in% c("Possible contamination"))) %>% 
-  filter(!(`Obs. Curadoria` %in% c("Possible contamination")))
+  filter(!(`Obs. Curadoria` %in% c("Possible contamination"))) 
 
 # View(pre_filt_tbl)
 
@@ -206,9 +227,17 @@ pre_filt_tbl <-
             "2021", "2021", "2021", "2021", "2022", "2022", "2022", "2022")
   
   # Site
-  Site <- c("Fundação", "Ponte", "Ponte", "Prainha", "Barragem", "Ponte", "Fundação", "Prainha", 
-            "Barragem", "Ponte", "Fundação", "Prainha", "Barragem", "Ponte", "Fundação", "Prainha", 
-            "Barragem", "Ponte", "Fundação")
+  # Site <- c("Fundação", "Ponte", "Ponte", "Prainha", "Barragem", "Ponte", "Fundação", "Prainha", 
+  #           "Barragem", "Ponte", "Fundação", "Prainha", "Barragem", "Ponte", "Fundação", "Prainha", 
+  #           "Barragem", "Ponte", "Fundação")  
+  
+  # Site
+  # Site <- c("P1", "P2", "P2", "P3", "P4", "P2", "P1", "P3", "P4", "P2", "P1",
+  # "P3", "P4", "P2", "P1", "P3", "P4", "P2", "P1")  # Site
+  
+  # Site
+  Site <- c("P1", "P2", "P2", "P3", "P4", "P2", "P1", "P3", "P4", "P2", "P1",
+  "P3", "P4", "P2", "P1", "P3", "P4", "P2", "P1")
   
   # Filter
   Filter <- c("MCE", "MCE", "MCE", "MCE", "MCE", "MCE", "MCE", "MCE", "MCE", "MCE", "MCE", "Sterivex", 
@@ -220,32 +249,57 @@ pre_filt_tbl <-
            "EM156", "EM156", "EM156", "EM156", "EM156", "EM156")
 
   # Level
-  Level <- c("Full", "Full", "Full", "Low", "Low", "Low", "Low", "Low", "Low", "Low", "Low", "Low", 
-             "Low", "Low", "Low", "Full", "Full", "Full", "Full")
+  Level <- c("High", "High", "High", "Low", "Low", "Low", "Low", "Low", "Low", "Low", "Low", "Low", 
+             "Low", "Low", "Low", "High", "High", "High", "High")
 }
 
 # As tibble
 metadata_tbl <- tibble(Run, Sample, Filter, Site, Expedition, Year, Level)
-
-# Merging metadata with filtered results
-
-# pre_filt_tbl %>% colnames() %>% paste0(collapse = '",\n"') %>% cat()
-# metadata_tbl %>% colnames() %>% paste0(collapse = '",\n"') %>% cat()
-
-# pre_filt_tbl$Sample %>% unique()
 
 curated_full_tbl <- left_join(pre_filt_tbl, metadata_tbl,
                               by = "Sample") %>%
   select(c("ASV header", "ASV (Sequence)", "Curated ID", "Final ID (BLASTn)", "BLASTn pseudo-score", 
            "Class (BLASTn)", "Family (BLASTn)", "Genus (BLASTn)", "Order (BLASTn)", "Sample", 
            "Unique_File_name", "OTU", "Abundance", "Read origin", "Primer expected length", "ASV Size (pb)", 
-           "Run", "Sample", "Filter", "Site", "Expedition", "Year", "Level")) 
+           "Run", "Sample", "Filter", "Site", "Expedition", "Year", "Level")) %>% 
+  filter(Filter %in% "MCE")
 
-# View(curated_full_tbl)
+View(curated_full_tbl)
 ```
 
 ## Suplementary tables
 ```{r, eval=FALSE,echo=FALSE}
+## Raw table ----
+
+# Creating a table to evaluate the raw data after pipeline processing
+
+raw_resume <- raw_results_tbl %>% 
+  group_by(Sample) %>%
+  mutate("Abd total" = sum(Abundance)) %>%
+  ungroup() %>%
+  group_by(`Curated ID`) %>% 
+  mutate("Abundancia total" = sum(Abundance)) %>% 
+  ungroup %>% 
+  group_by(`Final ID (BLASTn)`) %>% 
+  mutate("Reads totais" = sum(Abundance)) %>% 
+  ungroup() %>% 
+  group_by(Sample) %>%
+  mutate("RRA by sample" = (Abundance/`Abd total`)*100) %>% 
+  reframe(
+    "Total reads" = `Reads totais`,
+    "Total abundance" = `Abundancia total`,
+    "RRA" = sum(`RRA by sample`),
+    "ASVs" = length(unique(`ASV header`)),
+    "OTUs" = length(unique(OTU)),
+    "Reads" = sum(Abundance),
+    "Class" = `Class (BLASTn)`,
+    "Order" = `Order (BLASTn)`,
+    "Family" = `Family (BLASTn)`,
+    "Genus" = `Genus (BLASTn)`,
+    "Curated ID" = `Curated ID`
+  ) %>%
+  unique()
+
 ## Suplementar table A ----
 
 # Creating a table to use to evaluate the unfiltered data
@@ -280,7 +334,7 @@ dt_all_resume <- curated_full_tbl %>%
 
 # View(dt_all_resume)
 
-# Testing if RRA was calculatad right
+# Testing if RRA was calculated right
 dt_all_resume %>%
   group_by( `Site`, `Level`, `Filter`, `Year`) %>%
   summarise(total_RRA = sum(RRA, na.rm = TRUE)) %>%
@@ -290,78 +344,62 @@ dt_all_resume %>%
 {wider_dt_all_resume <- dt_all_resume %>% 
   mutate(RRA = round(RRA,digits = 4)) %>% 
   ungroup() %>% 
-  unite(Site, Level, Year, Filter, col= "Site_Level_Year_Filter") %>% 
+  unite(Site, Level, Year, Filter, col= "Site_Level_Year") %>% 
   pivot_wider(id_cols = c("Class","Curated ID", "Final ID (BLASTn)", "Total reads", "Total abundance"),
-              names_from = Site_Level_Year_Filter,
+              # names_from = Site_Level_Year_Filter,
+              names_from = Site_Level_Year,
               values_from =  c("RRA","ASVs","OTUs","Reads"),
-              names_glue = "{Site_Level_Year_Filter}_{.value}") %>%
+              names_glue = "{Site_Level_Year}_{.value}") %>%
   select(sort(colnames(.))) %>% 
   relocate("Class","Curated ID","Final ID (BLASTn)","Total reads", "Total abundance",
            #2020 MCE
-           "Ponte_Full_2020_MCE_Reads",
-           "Ponte_Full_2020_MCE_ASVs",
-           "Ponte_Full_2020_MCE_OTUs",
-           "Ponte_Full_2020_MCE_RRA",
-           "Fundação_Full_2020_MCE_Reads",
-           "Fundação_Full_2020_MCE_ASVs",
-           "Fundação_Full_2020_MCE_OTUs",
-           "Fundação_Full_2020_MCE_RRA",
+           "P1_High_2020_MCE_Reads",
+           "P1_High_2020_MCE_ASVs",
+           "P1_High_2020_MCE_OTUs",
+           "P1_High_2020_MCE_RRA",
+           "P2_High_2020_MCE_Reads",
+           "P2_High_2020_MCE_ASVs",
+           "P2_High_2020_MCE_OTUs",
+           "P2_High_2020_MCE_RRA",
            #2021 MCE
-           "Prainha_Low_2021_MCE_Reads",
-           "Prainha_Low_2021_MCE_ASVs",
-           "Prainha_Low_2021_MCE_OTUs",
-           "Prainha_Low_2021_MCE_RRA",
-           "Barragem_Low_2021_MCE_Reads",
-           "Barragem_Low_2021_MCE_ASVs",
-           "Barragem_Low_2021_MCE_OTUs",
-           "Barragem_Low_2021_MCE_RRA",
-           "Ponte_Low_2021_MCE_Reads",
-           "Ponte_Low_2021_MCE_ASVs",
-           "Ponte_Low_2021_MCE_OTUs",
-           "Ponte_Low_2021_MCE_RRA",
-           "Fundação_Low_2021_MCE_Reads",
-           "Fundação_Low_2021_MCE_ASVs",
-           "Fundação_Low_2021_MCE_OTUs",
-           "Fundação_Low_2021_MCE_RRA",
-           #2021 Sterivex
-           "Prainha_Low_2021_Sterivex_Reads",
-           "Prainha_Low_2021_Sterivex_ASVs",
-           "Prainha_Low_2021_Sterivex_OTUs",
-           "Prainha_Low_2021_Sterivex_RRA",
-           "Barragem_Low_2021_Sterivex_Reads",
-           "Barragem_Low_2021_Sterivex_ASVs",
-           "Barragem_Low_2021_Sterivex_OTUs",
-           "Barragem_Low_2021_Sterivex_RRA",
-           "Ponte_Low_2021_Sterivex_Reads",
-           "Ponte_Low_2021_Sterivex_ASVs",
-           "Ponte_Low_2021_Sterivex_OTUs",
-           "Ponte_Low_2021_Sterivex_RRA",
-           "Fundação_Low_2021_Sterivex_Reads",
-           "Fundação_Low_2021_Sterivex_ASVs",
-           "Fundação_Low_2021_Sterivex_OTUs",
-           "Fundação_Low_2021_Sterivex_RRA",
+           "P1_Low_2021_MCE_Reads",
+           "P1_Low_2021_MCE_ASVs",
+           "P1_Low_2021_MCE_OTUs",
+           "P1_Low_2021_MCE_RRA",
+           "P2_Low_2021_MCE_Reads",
+           "P2_Low_2021_MCE_ASVs",
+           "P2_Low_2021_MCE_OTUs",
+           "P2_Low_2021_MCE_RRA",
+           "P3_Low_2021_MCE_Reads",
+           "P3_Low_2021_MCE_ASVs",
+           "P3_Low_2021_MCE_OTUs",
+           "P3_Low_2021_MCE_RRA",
+           "P4_Low_2021_MCE_Reads",
+           "P4_Low_2021_MCE_ASVs",
+           "P4_Low_2021_MCE_OTUs",
+           "P4_Low_2021_MCE_RRA",
            #2022 MCE
-           "Prainha_Full_2022_MCE_Reads",
-           "Prainha_Full_2022_MCE_ASVs",
-           "Prainha_Full_2022_MCE_OTUs",
-           "Prainha_Full_2022_MCE_RRA",
-           "Barragem_Full_2022_MCE_Reads",
-           "Barragem_Full_2022_MCE_ASVs",
-           "Barragem_Full_2022_MCE_OTUs",
-           "Barragem_Full_2022_MCE_RRA",
-           "Ponte_Full_2022_MCE_Reads",
-           "Ponte_Full_2022_MCE_ASVs",
-           "Ponte_Full_2022_MCE_OTUs",
-           "Ponte_Full_2022_MCE_RRA",
-           "Fundação_Full_2022_MCE_Reads",
-           "Fundação_Full_2022_MCE_ASVs",
-           "Fundação_Full_2022_MCE_OTUs",
-           "Fundação_Full_2022_MCE_RRA"
+           "P1_High_2022_MCE_Reads",
+           "P1_High_2022_MCE_ASVs",
+           "P1_High_2022_MCE_OTUs",
+           "P1_High_2022_MCE_RRA",
+           "P2_High_2022_MCE_Reads",
+           "P2_High_2022_MCE_ASVs",
+           "P2_High_2022_MCE_OTUs",
+           "P2_High_2022_MCE_RRA",
+           "P3_High_2022_MCE_Reads",
+           "P3_High_2022_MCE_ASVs",
+           "P3_High_2022_MCE_OTUs",
+           "P3_High_2022_MCE_RRA",
+           "P4_High_2022_MCE_Reads",
+           "P4_High_2022_MCE_ASVs",
+           "P4_High_2022_MCE_OTUs",
+           "P4_High_2022_MCE_RRA"
   )}
 
-# View(wider_dt_all_resume)
+View(wider_dt_all_resume)
 
-write.csv(wider_dt_all_resume, paste0(tbl_path, "/wider_dt_all_resume_2024.csv"))
+write.csv(wider_dt_all_resume, paste0(tbl_path, "/wider_dt_all_resume_2025.csv"))
 
 ## Suplementar table B ----
 
@@ -369,17 +407,19 @@ write.csv(wider_dt_all_resume, paste0(tbl_path, "/wider_dt_all_resume_2024.csv")
 # Filtered data, only Actinopteri and reads >=100
 
 filt_tbl <- curated_full_tbl %>% 
-  filter(`Class (BLASTn)` %in% "Actinopteri") %>% 
+  filter(`Class (BLASTn)` %in% "Actinopteri",
+         !`Curated ID` %in% c("Salmo salar")) %>% 
   group_by(`Curated ID`, Site, Level, Filter, Year) %>% 
   mutate(Reads = sum(Abundance)) %>% 
   filter(Reads >= 100) %>% 
   ungroup()
 
-# View(filt_tbl)
+View(filt_tbl)
 
 # Filtered and grouped data by Samples
 grouped_sampled_filt_tbl <- curated_full_tbl %>% 
-  filter(`Class (BLASTn)` %in% "Actinopteri") %>% 
+  filter(`Class (BLASTn)` %in% "Actinopteri",
+         !`Curated ID` %in% c("Salmo salar")) %>% 
   group_by(`Curated ID`, Sample) %>% 
   mutate(Reads = sum(Abundance)) %>% 
   filter(Reads >= 100) %>% 
@@ -391,16 +431,17 @@ grouped_sampled_filt_tbl <- curated_full_tbl %>%
   # calculating RRA by Sample
   group_by(`Curated ID`, Sample) %>%
   mutate("RRA na amostra" = (Abundance/`Abd total`*100)) %>% 
-  summarize("Site" = first(Site),
-          "Year" = first(Year),
-          "Expedition" = first(Expedition),
-          "Level" = first(Level),
-          "Filter" = first(Filter),
-          "Order" = first(`Order (BLASTn)`),
-          "Family" = first(`Family (BLASTn)`),
-          "Genus" = first(`Genus (BLASTn)`),
+  summarize("Site" = dplyr::first(Site),
+          "Year" = dplyr::first(Year),
+          "Expedition" = dplyr::first(Expedition),
+          "Level" = dplyr::first(Level),
+          "Filter" = dplyr::first(Filter),
+          "Class" = dplyr::first(`Class (BLASTn)`),
+          "Order" = dplyr::first(`Order (BLASTn)`),
+          "Family" = dplyr::first(`Family (BLASTn)`),
+          "Genus" = dplyr::first(`Genus (BLASTn)`),
           "Reads" = sum(Abundance),
-          "Sample abundance" = first(`Abd total`),
+          "Sample abundance" = dplyr::first(`Abd total`),
           "RRA" = sum(`RRA na amostra`),
           "ASVs" = length(unique(`ASV header`)),
           "OTUs" = length(unique(OTU)),
@@ -415,7 +456,9 @@ grouped_sampled_filt_tbl %>%
   ungroup()
 
 # Filtered and grouped data by Year, Site and Filter
-grouped_filt_tbl <- filt_tbl %>% 
+
+# A tabela wider precisa dessas informacoes separadamente
+grouped_filt_tbl <- filt_tbl %>%
   # creating total abundance by period
   group_by(Level, Site, Filter, Year) %>%
   mutate("Abd total" = sum(Abundance)) %>%
@@ -428,6 +471,7 @@ grouped_filt_tbl <- filt_tbl %>%
   group_by(`Curated ID`, Site, Level, Filter, Year) %>%
   mutate("RRA no periodo" = (Abundance/`Abd total`)*100) %>% 
   reframe("Curated ID" = `Curated ID`,
+          "Class" = `Class (BLASTn)`,
           "Order" = `Order (BLASTn)`,
           "Family" = `Family (BLASTn)`,
           "Genus" = `Genus (BLASTn)`,
@@ -439,7 +483,7 @@ grouped_filt_tbl <- filt_tbl %>%
           "OTUs" = length(unique(OTU))) %>% 
   unique()
 
-# View(grouped_filt_tbl_tbl)
+View(grouped_filt_tbl)
 
 # Is RRA correct?
 grouped_filt_tbl %>%
@@ -448,172 +492,155 @@ grouped_filt_tbl %>%
   ungroup()
 
 # Tabela wider com os dados filtrados
-{
   wider_filt_tbl <- grouped_filt_tbl %>% 
   mutate(RRA = round(RRA,digits = 4)) %>% 
   ungroup() %>% 
-  unite(Site, Level, Year, Filter, col= "Site_Level_Year_Filter") %>% 
+  unite(Site, Level, Year, col= "Site_Level_Year") %>% 
   pivot_wider(id_cols = c("Curated ID", "Total abundance"),
-              names_from = Site_Level_Year_Filter,
+              names_from = Site_Level_Year,
               values_from =  c("RRA","ASVs","OTUs","Reads"),
-              names_glue = "{Site_Level_Year_Filter}_{.value}") %>%
+              names_glue = "{Site_Level_Year}_{.value}") %>%
   select(sort(colnames(.))) %>% 
   relocate("Curated ID",
            "Total abundance",
            #2020 MCE
-           "Ponte_Full_2020_MCE_Reads", 
-           "Ponte_Full_2020_MCE_ASVs", 
-           "Ponte_Full_2020_MCE_OTUs",
-           "Ponte_Full_2020_MCE_RRA",
-           "Fundação_Full_2020_MCE_Reads",
-           "Fundação_Full_2020_MCE_ASVs",
-           "Fundação_Full_2020_MCE_OTUs",
-           "Fundação_Full_2020_MCE_RRA",
+           "P1_High_2020_Reads",
+           "P1_High_2020_ASVs",
+           "P1_High_2020_OTUs",
+           "P1_High_2020_RRA",
+           "P2_High_2020_Reads",
+           "P2_High_2020_ASVs",
+           "P2_High_2020_OTUs",
+           "P2_High_2020_RRA",
            #2021 MCE
-           "Prainha_Low_2021_MCE_Reads",
-           "Prainha_Low_2021_MCE_ASVs",
-           "Prainha_Low_2021_MCE_OTUs",
-           "Prainha_Low_2021_MCE_RRA",
-           "Barragem_Low_2021_MCE_Reads",
-           "Barragem_Low_2021_MCE_ASVs",
-           "Barragem_Low_2021_MCE_OTUs",
-           "Barragem_Low_2021_MCE_RRA",
-           "Ponte_Low_2021_MCE_Reads",
-           "Ponte_Low_2021_MCE_ASVs",
-           "Ponte_Low_2021_MCE_OTUs",
-           "Ponte_Low_2021_MCE_RRA",
-           "Fundação_Low_2021_MCE_Reads",
-           "Fundação_Low_2021_MCE_ASVs",
-           "Fundação_Low_2021_MCE_OTUs",
-           "Fundação_Low_2021_MCE_RRA",
-           #2021 Sterivex
-           "Prainha_Low_2021_Sterivex_Reads",
-           "Prainha_Low_2021_Sterivex_ASVs",
-           "Prainha_Low_2021_Sterivex_OTUs",
-           "Prainha_Low_2021_Sterivex_RRA",
-           "Barragem_Low_2021_Sterivex_Reads",
-           "Barragem_Low_2021_Sterivex_ASVs",
-           "Barragem_Low_2021_Sterivex_OTUs",
-           "Barragem_Low_2021_Sterivex_RRA",
-           "Ponte_Low_2021_Sterivex_Reads",
-           "Ponte_Low_2021_Sterivex_ASVs",
-           "Ponte_Low_2021_Sterivex_OTUs",
-           "Ponte_Low_2021_Sterivex_RRA",
-           "Fundação_Low_2021_Sterivex_Reads",
-           "Fundação_Low_2021_Sterivex_ASVs",
-           "Fundação_Low_2021_Sterivex_OTUs",
-           "Fundação_Low_2021_Sterivex_RRA",
+           "P1_Low_2021_Reads",
+           "P1_Low_2021_ASVs",
+           "P1_Low_2021_OTUs",
+           "P1_Low_2021_RRA",
+           "P2_Low_2021_Reads",
+           "P2_Low_2021_ASVs",
+           "P2_Low_2021_OTUs",
+           "P2_Low_2021_RRA",
+           "P3_Low_2021_Reads",
+           "P3_Low_2021_ASVs",
+           "P3_Low_2021_OTUs",
+           "P3_Low_2021_RRA",
+           "P4_Low_2021_Reads",
+           "P4_Low_2021_ASVs",
+           "P4_Low_2021_OTUs",
+           "P4_Low_2021_RRA",
            #2022 MCE
-           "Prainha_Full_2022_MCE_Reads",
-           "Prainha_Full_2022_MCE_ASVs",
-           "Prainha_Full_2022_MCE_OTUs",
-           "Prainha_Full_2022_MCE_RRA",
-           "Barragem_Full_2022_MCE_Reads",
-           "Barragem_Full_2022_MCE_ASVs",
-           "Barragem_Full_2022_MCE_OTUs",
-           "Barragem_Full_2022_MCE_RRA"
-           # "Ponte_Full_2022_MCE_Reads", # Os dois prox pontos nao sobreviveram 
-           # "Ponte_Full_2022_MCE_ASVs", # aos filtros por que nao tem ASVs de peixes 
-           # "Ponte_Full_2022_MCE_OTUs",
-           # "Ponte_Full_2022_MCE_RRA",
-           # "Fundação_Full_2022_MCE_Reads",
-           # "Fundação_Full_2022_MCE_ASVs",
-           # "Fundação_Full_2022_MCE_OTUs",
-           # "Fundação_Full_2022_MCE_RRA"
-  )
-  }
+           "P3_High_2022_Reads",
+           "P3_High_2022_ASVs",
+           "P3_High_2022_OTUs",
+           "P3_High_2022_RRA",
+           "P4_High_2022_Reads",
+           "P4_High_2022_ASVs",
+           "P4_High_2022_OTUs",
+           "P4_High_2022_RRA")
 
-# View(wider_filt_tbl)
+View(wider_filt_tbl)
 
-write.csv(wider_filt_tbl, paste0(tbl_path, "/wider_dt_filt_2024.csv"))
+write.csv(wider_filt_tbl, paste0(tbl_path, "/wider_dt_filt_2025.csv"))
 ```
 
 
 ## Basic stats
+
 ```{r, eval=FALSE,echo=FALSE}
 options(scipen = 999)
 
-# Reads, ASVs and Species by Curated ID and Order ----
+# Reads by sample after sequencing ----
 
 ## Raw stats
 
-curated_full_tbl %>% 
-  group_by(`Class (BLASTn)`) %>% 
-  reframe(
-    "Total reads" = sum(Abundance), 
-    "ASVs" = n_distinct(`ASV (Sequence)`),
-    "OTUs" = n_distinct(OTU),
-    "Orders" = length(unique(`Order (BLASTn)`)),
-    "Families" = length(unique(`Family (BLASTn)`)),
-    "Genus" = length(unique(`Genus (BLASTn)`)),
-    "Species" = length(unique(`Curated ID`[grepl("^[A-Za-z]+\\s[A-Za-z]+$", `Curated ID`) & !grepl("sp\\.", `Curated ID`)])),
-    "Nspecies" = length(unique(`Curated ID`)) - Species
-  ) %>% 
-  unique() %>% 
-  View()
+# Numero de reads por etapa
 
-## Stats Actinopteri
-grouped_sampled_filt_tbl %>% 
-  View()
+seq_read_counts <- read_excel("/home/gabriel/projetos/peixes-eDNA/analises/dez_23/runs_2_4_5_EM156/results/LI-reads_and_seqs_counts2024-01-08.xlsx") %>% 
+  tibble() %>%
+  # escolher apenas amostras relacionadas ao filtro MCE
+  filter(Sample %in% c(
+                        "L1_nov_dec_20_mi", "L2_nov20", "L2_dez20", "L1_out21", "L2_out21", "L3_out21", "L4_out21", "L1_nov21", "L2_nov21", "L3_nov21",
+                        # "L4_nov21", "STX__L1_nov21", "STX__L2_nov21", "STX__L3_nov21", "STX__L4_nov21", "br_nov21", 
+                        "L1_jan22", "L2_jan22", "L3_jan22", "L4_jan22", "br_jan_22"
+                        ,"EM113_NEGPCR1", "EM135c4c5_NEGPCR1", "EM135c4c5_NEGPCR2", "EM149_NEGPCR1", "EM149_NEGPCR2", "EM156_NegPCR1", "S724_NEGPCR1"
+  )) %>% 
+  summarise("Total reads" = sum(`Raw reads (pairs)`))    
+             
+# Reads post-pipeline and filters
 
-grouped_sampled_filt_tbl %>% 
-  group_by(`Curated ID`) %>% 
-  mutate("Total reads" = sum(Reads)) %>%
-  ungroup() %>% 
+# Obtendo total de reads por amostra apos pipeline e filtragens, que foram usadas nas analises 
+# Filtros: Sem NA, apenas Actinopteri, Curated ID >= 100 reads, 
+
+# filt_raw_reads <- grouped_filt_tbl %>%
+filt_raw_reads <- grouped_sampled_filt_tbl %>%
+  # group_by(`Curated ID`) %>% # grouped_filt_tbl
+  group_by(Sample) %>% # grouped_filt_tbl
+  summarise(total_abd_filt = sum(Reads))
+
+View(filt_raw_reads)
+
+sum(filt_raw_reads$total_abd_filt)
+
+# Total reads in ASVs, OTUs, Orders, Families, Genus, Species and Nspecies for raw data
+
+raw_stats <- raw_resume %>%
+  group_by(Class) %>% 
   reframe(
-    # "Total reads" = sum(`Total reads`),
-    "Total reads" = `Total reads`,
-    "ASVs" = n_distinct(`ASV header`),
-    "OTUs" = n_distinct(`OTU number`),
+    "Total reads" = sum(Reads),
+    "ASVs" = sum(ASVs),
+    "OTUs" = sum(OTUs),
     "Orders" = length(unique(Order)),
     "Families" = length(unique(Family)),
-    "Genus" = length(unique(Genus)),
+    "Genera" = length(unique(Genus)),
     "Species" = length(unique(`Curated ID`[grepl("^[A-Za-z]+\\s[A-Za-z]+$", `Curated ID`) & !grepl("sp\\.", `Curated ID`)])),
     "Nspecies" = length(unique(`Curated ID`)) - Species
-  )  %>% 
-  unique() %>% 
-  View()
+  ) %>%
+  unique()
 
-## Grouped by Curated ID
-grouped_sampled_filt_tbl %>% 
-  mutate("Total reads" = sum(Reads)) %>% 
-  group_by(`Curated ID`) %>% 
-  reframe("Total species reads" = sum(Reads),
-            "Relative abundance for species" = `Total species reads` / `Total reads` * 100,
-          "Order" = Order) %>% 
-  relocate(Order, `Curated ID`) %>% 
-  unique() %>% 
-  View()
+View(raw_stats)
 
-## Grouped by Order
-grouped_sampled_filt_tbl %>% 
-  mutate("Total reads" = sum(Reads)) %>% 
-  group_by(Order) %>% 
-  reframe("Total order reads" = sum(Reads),
-          "Relative abundance for order" = `Total order reads` / `Total reads` * 100,
-          "Total ASVs" = sum(ASVs),
-          "Total Species" = n_distinct(`Curated ID`)) %>% 
-  unique() %>% 
-  View()
+# Total reads in ASVs, OTUs, Orders, Families, Genus, Species and Nspecies
 
-# Reads, ASVs and Species by Filter ----
+# Obtendo infos sobre as reads que foram usadas nas analises
+# Quantas ASVs, OTUs, Ordens, Familias, Generos, Especies e IDs a nivel de Genus spp.
+# Escolher qual agrupamento: Classe, Ordem, Familia, Genero ou Especie
 
-## Grouped by Filter
-grouped_sampled_filt_tbl %>% 
-  filter(Expedition %in% "Novembro 2021") %>%
-  mutate("Total reads" = sum(Reads)) %>% 
-  group_by(Filter, 
-           # `Curated ID`
-           ) %>% 
-  reframe("Total filter reads" = sum(Reads),
-          "Relative abundance for filter" = `Total filter reads` / `Total reads` * 100,
-          "Total ASVs" = sum(ASVs),
-          "Total orders" =  n_distinct(Order),
-          "Total families" =  n_distinct(Family),
-          "Total Species" = n_distinct(`Curated ID`),
-          "Total Samples" = n_distinct(Sample)) %>% 
+grouped_filt_stats <- grouped_filt_tbl %>% #dependendo da tabela, resultados diferentes
+  group_by(Class) %>% # Grouped by Class
+  # group_by(Order) %>% # Grouped by Order
+  # group_by(Family) %>% # Grouped by Family
+  # group_by(Genus) %>% # Grouped by Genus
+  # group_by(`Curated ID`) %>% # Grouped by Species
+  reframe(
+    "Total reads" = sum(Reads),
+    "ASVs" = sum(ASVs),
+    "OTUs" = sum(OTUs),
+    "Orders" = length(unique(`Order`)),
+    "Families" = length(unique(`Family`)),
+    "Genera" = length(unique(`Genus`)),
+    "Species" = length(unique(`Curated ID`[grepl("^[A-Za-z]+\\s[A-Za-z]+$", `Curated ID`) & !grepl("sp\\.", `Curated ID`)])),
+    "Nspecies" = length(unique(`Curated ID`)) - Species
+  ) %>%
+  unique()
+
+# View(grouped_sampled_stats)
+View(grouped_filt_stats)
+
+# Mean and SD of alpha-diversity
+
+grouped_filt_site <- grouped_filt_tbl %>% #dependendo da tabela, resultados diferentes
+  group_by(Level, Site) %>% 
+  mutate(
+    "Diversity" = length(unique(`Curated ID`))) %>%
+  ungroup() %>% 
+  select(Level, Site, Diversity) %>% 
   unique() %>% 
-  View()
+  group_by(Level) %>% 
+  mutate(
+    "Mean" = mean(Diversity),
+    "SD" = sd(Diversity))
+
 
 
 ```
@@ -648,12 +675,12 @@ spp_level <- grouped_filt_tbl %>%
   reframe("Species" = unique(`Curated ID`[grepl("^[A-Za-z]+\\s[A-Za-z]+$", `Curated ID`) & 
                                             !grepl("sp\\.", `Curated ID`)]))
 nspp_level <- grouped_filt_tbl %>% 
-  reframe("Nspecies" = setdiff(unique(`Curated ID`), spp_level))
+  reframe("Nspecies" = setdiff(unique(`Curated ID`), spp_level$Species))
     
 View(nspp_level) 
 
 # Informations grouped by taxa detected 
-id_level <- grouped_filt_tbl_tbl %>%
+id_level <- grouped_filt_tbl %>%
   group_by(`Curated ID`) %>%
     reframe("Order" = Order, "Family" = Family, "Genus" = Genus,
       "Curated identification" = `Curated ID`,
@@ -668,6 +695,9 @@ id_level <- grouped_filt_tbl_tbl %>%
            "Reads", "ASVs","OTUs") 
 
 View(id_level)
+
+# Arquivo para artigo
+write.xlsx(id_level, paste0(tbl_path, "/id_level_tbl.xlsx"))
 
 # Informations grouped  by Class
 class_Level <- grouped_filt_tbl %>%
@@ -687,8 +717,10 @@ View(class_Level)
   
 # Informations grouped by Order
 order_level <- grouped_filt_tbl %>%
+  filter(Filter %in% "MCE") %>%
   group_by(Order) %>%
   reframe(
+    # "Curated ID" = `Curated ID`,
     "Order" = Order,
     "Total reads" = sum(Reads), # dt_all_resume && # dt_filt
     "ASVs" = sum(ASVs),
@@ -701,12 +733,18 @@ order_level <- grouped_filt_tbl %>%
     ) %>% 
   unique()
   
-# View(order_level)
+View(order_level)
+
+# Arquivo para artigo
+# write.xlsx(order_level, paste0(tbl_path, "/order_level_tbl.xlsx"))
+write.xlsx(order_level, paste0(tbl_path, "/order_level_tbl.xlsx"))
 
 # Informations grouped by Family
 family_level <- grouped_filt_tbl %>%
+  filter(Filter %in% "MCE") %>%
   group_by(Family) %>%
   reframe(
+    "Order" = Order,
     "Total reads" = sum(Reads), 
     "ASVs" = sum(ASVs),
     "OTUs" = sum(OTUs),
@@ -717,7 +755,7 @@ family_level <- grouped_filt_tbl %>%
     ) %>% 
   unique()
   
-# View(family_level)
+View(family_level)
 
 # Informations grouped by Sample
 grouped_by_Sample <- filt_tbl %>%
@@ -756,79 +794,8 @@ View(unique_counts)
 ```{r, eval=FALSE,echo=FALSE}
 ## Plots ----
 
-# Proportions of identified orders 
-{fish_ord_all <- grouped_filt_tbl %>% 
-  unite(Site, Year, Filter, sep = "_", remove = FALSE, col = "un_amostral") %>% 
-  select(c( Order,`Curated ID`, Site, Year, Filter, un_amostral)) %>% 
-  unique() %>%
-  group_by(Site, Year, Filter) %>% 
-  mutate("alpha_d" = length(`Curated ID`)) %>%
-  ungroup() %>% 
-  group_by(Order,Site, Year, Filter) %>% 
-  mutate("alpha_d_order" = length(`Curated ID`)) %>% 
-  ungroup() %>% 
-  mutate("alpha_d_order_%" = round(alpha_d_order/alpha_d*100, digits = 2)) %>% 
-  select(-c(`Curated ID`)) %>% 
-  unique() %>% 
-  group_by(un_amostral) %>% 
-  mutate(Year_Level = case_when(Year == "2020" ~ "2020 - Full",
-                                Year == "2021" ~ "2021 - Low",
-                                Year == "2022" ~ "2022 - Full")) %>%
-  filter(Filter %in% "MCE") %>% 
-  ggplot(aes(x = Site,
-             y = alpha_d_order,
-             fill = Order)) +
-  geom_col(position = "fill") +
-  geom_text(aes(label = sprintf("%0.1f%%",`alpha_d_order_%`)), # adicionar % dentro das barras
-            position = position_fill(vjust = 0.5),
-            color = "black") +
-  facet_grid(rows = vars(Year_Level),
-             space = "free",
-             scales = "free",
-             drop = TRUE) +
-  coord_flip() + #virando 90o o grafico
-  guides(fill = guide_legend("Orders")) + ## alterar o titulo da legenda 
-  theme(panel.grid.major = element_line(color = "grey",
-                                        linewidth = 0.2,
-                                        linetype = 1),
-        axis.ticks = element_blank(),
-        axis.text = element_text(color = "black"),
-        axis.title = element_text(color = "black", size = rel(1.2)),
-        legend.text = element_text(color = "black"),
-        legend.title = element_text(color = "black", size = rel(1.2)),
-        plot.title = element_text(color = "black", size = rel(1.5)),
-        plot.subtitle = element_text(color = "black", size = rel(1.2))
-        ) +
-  theme(plot.title = element_text(size = 20, face = "bold"),
-        axis.text.x = element_text(size = 20), ## definindo o tamanho de cada texto
-        axis.text.y = element_text(size = 20),
-        axis.title.x = element_text(size = 20, face = "bold"),
-        axis.title.y = element_text(size = 20, face = "bold"),
-        legend.text = element_text(size = 19),
-        legend.title = element_text(size = 19),
-        strip.text = element_text(size = 15, face = "bold"),
-        legend.position = "bottom",
-        legend.background = element_rect(fill = "lightgray", color = NA)) +
-  scale_y_continuous(labels = scales::percent) +
-  scale_fill_manual(values = c("#5d9cecff",
-                               "#4fc1e9ff",
-                               "#ac92ecff",
-                               "#a0d468ff",
-                               "#ffce54ff",
-                               "#fc6e51ff",
-                               "#ed5565ff",
-                               "#48cfadff",                                  
-                               "#ec87c0ff")) +
-  labs(x = "Sample sites", y = "Proportion") 
-
-fish_ord_all
-
-ggsave(plot = fish_ord_all, 
-       filename = paste0(figs_path, "/alpha_ord", "-", Sys.Date(), ".pdf", sep = ""),
-       device = "pdf", units = "cm", height = 20, width = 40, dpi = 600)}
-
 # Proportions of identified orders HoH suggestions
-{fish_ord_all <- grouped_filt_tbl %>% 
+fish_ord_all <- grouped_filt_tbl %>% 
   unite(Site, Year, Filter, sep = "_", remove = FALSE, col = "un_amostral") %>% 
   select(c( Order,`Curated ID`, Site, Year, Filter, un_amostral)) %>% 
   unique() %>%
@@ -842,12 +809,9 @@ ggsave(plot = fish_ord_all,
   select(-c(`Curated ID`)) %>% 
   unique() %>% 
   group_by(un_amostral) %>% 
-  mutate(Year_Level = case_when(Year == "2020" ~ "2020 - Full",
-                                Year == "2021" ~ "2021 - Low",
-                                Year == "2022" ~ "2022 - Full")) %>%
-  mutate(Year_Level = factor(Year_Level, levels = c("2022 - Full",
-                                                    "2021 - Low",
-                                                    "2020 - Full"))) %>%
+  mutate(Year_Level = case_when(Year == "2020" ~ "High",
+                                Year == "2021" ~ "Low",
+                                Year == "2022" ~ "High")) %>%
   filter(Filter %in% "MCE") %>% 
   ggplot(aes(
              # x = Site,
@@ -887,26 +851,24 @@ ggsave(plot = fish_ord_all,
         legend.position = "bottom",
         legend.background = element_rect(fill = "lightgray", color = NA)) +
   scale_y_continuous(labels = scales::percent) +
-  scale_fill_manual(values = c("#5d9cecff",
-                               "#4fc1e9ff",
-                               "#ac92ecff",
-                               "#a0d468ff",
-                               "#ffce54ff",
-                               "#fc6e51ff",
-                               "#ed5565ff",
-                               "#48cfadff",                                  
-                               "#ec87c0ff")) +
-  labs(x = "Year and water level", y = "Proportion") 
+  scale_fill_manual(values = c("#1f77b4",
+                               "#ff7f0e",
+                               "#2ca02c",
+                               "#d62728"
+                               )) +
+  labs(x = "Reservoir level", y = "Proportion of species") 
 
 fish_ord_all
 
 ggsave(plot = fish_ord_all, 
        filename = paste0(figs_path, "/alpha_ord_HoH", "-", Sys.Date(), ".pdf", sep = ""),
-       device = "pdf", units = "cm", height = 20, width = 40, dpi = 600)
-}
+       units = "cm", 
+       height = 20, 
+       width = 30, 
+       dpi = 600)
 
-# Proportions of identified families
-{fish_fam_all <- grouped_filt_tbl %>%
+# Proportions of identified families 
+fish_fam_all <- grouped_filt_tbl %>%
   unite(Site, Year, Filter,sep = "_", remove = FALSE, col = "un_amostral") %>% 
   select(c(Order, Family,`Curated ID`, Site, Year, Filter, un_amostral)) %>% 
   unique() %>%
@@ -920,85 +882,9 @@ ggsave(plot = fish_ord_all,
   select(-c(`Curated ID`)) %>% 
   unique() %>% 
   group_by(un_amostral) %>% 
-  mutate(Year_Level = case_when(Year == "2020" ~ "2020 - Full",
-                                Year == "2021" ~ "2021 - Low",
-                                Year == "2022" ~ "2022 - Full")) %>%
-  filter(Filter %in% "MCE") %>% 
-  ggplot(aes(x = Site,
-             y = alpha_d_order,
-             fill = Family)) +
-  geom_col(position = "fill") +
-  geom_text(aes(label = sprintf("%0.1f%%",`alpha_d_order_%`)), #adicionando % dentro das barras
-            position = position_fill(vjust = 0.5),
-            color = "black") +
-  facet_grid(rows = vars(Year_Level),
-  space = "free", 
-  scales = "free",
-  drop = TRUE) +
-  coord_flip() + #virando 90o o grafico
-  guides(fill = guide_legend("Family")) + ## alterar o titulo da legenda 
-  theme(panel.grid.major = element_line(color = "grey",
-                                        linewidth = 0.2,
-                                        linetype = 1),
-        axis.ticks = element_blank(),
-        axis.text = element_text(color = "black"),
-        axis.title = element_text(color = "black", size = rel(1.2)),
-        legend.text = element_text(color = "black"),
-        legend.title = element_text(color = "black", size = rel(1.2)),
-        plot.title = element_text(color = "black", size = rel(1.5)),
-        plot.subtitle = element_text(color = "black", size = rel(1.2))
-        ) +
-  theme(plot.title = element_text(size = 20, face = "bold"),
-        axis.text.x = element_text(size = 20), ## definindo o tamanho de cada texto
-        axis.text.y = element_text(size = 20),
-        axis.title.x = element_text(size = 20, face = "bold"),
-        axis.title.y = element_text(size = 20, face = "bold"),
-        legend.text = element_text(size = 19),
-        legend.title = element_text(size = 19),
-        strip.text = element_text(size = 15, face = "bold"),
-        legend.position = "bottom",
-        legend.background = element_rect(fill = "lightgray", color = NA)) +
-  scale_y_continuous(labels = scales::percent) +
-  scale_fill_manual(values = c("#5d9cecff",
-                               "#4fc1e9ff",
-                               "#48cfadff",
-                               "#a0d468ff",
-                               "#ffce54ff",
-                               "#fc6e51ff",
-                               "#ed5565ff",
-                               "#ac92ecff",
-                               "#ec87c0ff"
-                               )) +
-  labs(x = "Sample sites", y = "Proportion")
-
-fish_fam_all
-
-ggsave(plot = fish_fam_all, 
-         filename = paste0(figs_path, "/alpha_fam_filt", "-", Sys.Date(), ".pdf", sep = ""),
-         device = "pdf", units = "cm", height = 21, width = 40, dpi = 600)
-}
-
-# Proportions of identified families HoH suggestions 
-{fish_fam_all <- grouped_filt_tbl %>%
-  unite(Site, Year, Filter,sep = "_", remove = FALSE, col = "un_amostral") %>% 
-  select(c(Order, Family,`Curated ID`, Site, Year, Filter, un_amostral)) %>% 
-  unique() %>%
-  group_by(Site, Year, Filter) %>% 
-  mutate("alpha_d" = length(`Curated ID`)) %>%
-  ungroup() %>% 
-  group_by(Family,Site, Year, Filter) %>% 
-  mutate("alpha_d_order" = length(`Curated ID`)) %>% 
-  ungroup() %>% 
-  mutate("alpha_d_order_%" = round(alpha_d_order/alpha_d*100, digits = 2)) %>% 
-  select(-c(`Curated ID`)) %>% 
-  unique() %>% 
-  group_by(un_amostral) %>% 
-  mutate(Year_Level = case_when(Year == "2020" ~ "2020 - Full",
-                                Year == "2021" ~ "2021 - Low",
-                                Year == "2022" ~ "2022 - Full")) %>%
-  mutate(Year_Level = factor(Year_Level, levels = c("2022 - Full",
-                                                    "2021 - Low",
-                                                    "2020 - Full"))) %>%
+  mutate(Year_Level = case_when(Year == "2020" ~ "Full",
+                                Year == "2021" ~ "Low",
+                                Year == "2022" ~ "Full")) %>%
   filter(Filter %in% "MCE") %>% 
   ggplot(aes(x = Year_Level,
              y = alpha_d_order,
@@ -1046,207 +932,16 @@ ggsave(plot = fish_fam_all,
                                "#ac92ecff",
                                "#ec87c0ff"
                                )) +
-  labs(x = "Year and water level", y = "Proportion")
+  labs(x = "Reservoir level", y = "Proportion of species")
 
 fish_fam_all
 
 ggsave(plot = fish_fam_all, 
-         filename = paste0(figs_path, "/alpha_fam_filt_HoH", "-", Sys.Date(), ".pdf", sep = ""),
-         device = "pdf", units = "cm", height = 21, width = 40, dpi = 600)
-}
-
-# Proportions of species identifications
-{id_prop_MCE_STX <- filt_tbl %>%
-  unite(Site, Year, Filter, sep = "_", remove = FALSE, col = "un_amostral") %>% 
-  filter(Expedition %in% "Novembro 2021") %>% 
-  select(c(`Curated ID`, Site, Year, Filter, un_amostral)) %>% 
-  unique() %>%
-  group_by(Site, Year, Filter) %>% 
-  mutate("alpha_d" = length(`Curated ID`)) %>%
-  ungroup() %>% 
-  group_by(`Curated ID`, Site, Year, Filter) %>% 
-  mutate("alpha_d_order" = length(`Curated ID`)) %>% 
-  ungroup() %>% 
-  mutate("alpha_d_order_%" = round(alpha_d_order / alpha_d * 100, digits = 2)) %>% 
-  unique() %>% 
-  # group_by(un_amostral) %>% 
-  # mutate(Year_Level = case_when(Year == "2020" ~ "2020 - Full",
-  #                               Year == "2021" ~ "2021 - Low",
-  #                               Year == "2022" ~ "2022 - Full")) %>%
-  # filter(Filter %in% "MCE") %>% 
-  # filter(Expedition %in% "Novembro 2021") %>%
-  ggplot(aes(x = Site,
-             y = alpha_d_order,
-             fill = `Curated ID`)) +
-  geom_col(position = "fill") +
-  geom_text(aes(label = sprintf("%0.1f%%",`alpha_d_order_%`)), #adicionando % dentro das barras
-            position = position_fill(vjust = 0.5),
-            color = "black") +
-  facet_grid(rows = vars(Filter),
-  space = "free", 
-  scales = "free",
-  drop = TRUE) +
-  coord_flip() + #virando 90o o grafico
-  guides(fill = guide_legend("Curated ID")) + ## alterar o titulo da legenda 
-  theme(panel.grid.major = element_line(color = "grey",
-                                        linewidth = 0.2,
-                                        linetype = 1),
-        axis.ticks = element_blank(),
-        axis.text = element_text(color = "black"),
-        axis.title = element_text(color = "black", size = rel(1.2)),
-        legend.text = element_text(color = "black"),
-        legend.title = element_text(color = "black", size = rel(1.2)),
-        plot.title = element_text(color = "black", size = rel(1.5)),
-        plot.subtitle = element_text(color = "black", size = rel(1.2))
-        ) +
-  theme(plot.title = element_text(size = 20, face = "bold"),
-        axis.text.x = element_text(size = 20), ## definindo o tamanho de cada texto
-        axis.text.y = element_text(size = 20),
-        axis.title.x = element_text(size = 20, face = "bold"),
-        axis.title.y = element_text(size = 20, face = "bold"),
-        legend.text = element_text(size = 19),
-        legend.title = element_text(size = 19),
-        strip.text = element_text(size = 15, face = "bold"),
-        legend.position = "bottom",
-        legend.background = element_rect(fill = "lightgray", color = NA)) +
-  scale_y_continuous(labels = scales::percent) +
-  scale_fill_manual(values = c("#1f77b4",  # Azul
-                               "#ff7f0e",  # Laranja
-                               "#2ca02c",  # Verde
-                               "#d62728",  # Vermelho
-                               "#9467bd",  # Roxo
-                               "#8c564b",  # Marrom
-                               "#e377c2",  # Rosa
-                               "#7f7f7f",  # Cinza
-                               "#bcbd22",  # Verde-amarelado
-                               "#17becf",  # Ciano
-                               "#fdae61",  # Laranja-claro
-                               "#ff9896",  # Rosa-pálido
-                               "#c49c94",  # Marrom-claro
-                               "#aec7e8",  # Azul-claro
-                               "#ffbb78",  # Laranja-suave
-                               "#98df8a",  # Verde-pálido
-                               "#c5b0d5",  # Lilás
-                               "#ff9896",  # Rosa-suave
-                               "#dbdb8d",  # Amarelo-pálido
-                               "#9edae5",  # Azul-petróleo claro
-                               "#ad494a",  # Vinho
-                               "#d53e4f",  # Rosa-forte
-                               "#393b79",  # Azul-marinho
-                               "#637939",  # Verde-musgo
-                               "#8c6d31",  # Dourado-escuro
-                               "#66c2a5",   # Verde-turquesa
-                               "#5254a3",  # Azul-índigo
-                               "#6b6ecf",  # Azul-púrpura
-                               "#bd9e39"   # Mostarda-claro
-                               )) +
-  labs(x = "Sample sites", y = "Proportion")
-
-id_prop_MCE_STX
-
-ggsave(plot = id_prop,
-         filename = paste0(figs_path, "/alpha_ids_MCE-STX_prop", "-", Sys.Date(), ".pdf", sep = ""),
-         device = "pdf", units = "cm", height = 22.5, width = 50, dpi = 600)
-}
-
-# Proportions of species identifications
-{id_prop_MCE_STX <- filt_tbl %>%
-  unite(Site, Year, Filter, sep = "_", remove = FALSE, col = "un_amostral") %>% 
-  filter(Expedition %in% "Novembro 2021") %>%
-  select(c(`Curated ID`, Site, Year, Filter, un_amostral)) %>% 
-  unique() %>%
-  group_by(Site, Year, Filter) %>% 
-  mutate("alpha_d" = length(`Curated ID`)) %>%
-  ungroup() %>% 
-  group_by(`Curated ID`, Site, Year, Filter) %>% 
-  mutate("alpha_d_order" = length(`Curated ID`)) %>% 
-  ungroup() %>% 
-  mutate("alpha_d_order_%" = round(alpha_d_order / alpha_d * 100, digits = 2)) %>% 
-  unique() %>% 
-  group_by(un_amostral) %>%
-  mutate(Year_Level = case_when(Year == "2020" ~ "2020 - Full",
-                                Year == "2021" ~ "2021 - Low",
-                                Year == "2022" ~ "2022 - Full")) %>%
-  mutate(Year_Level = factor(Year_Level, levels = c("2022 - Full",
-                                                    "2021 - Low",
-                                                    "2020 - Full"))) %>%  
-  # filter(Filter %in% "MCE") %>%
-  # filter(Expedition %in% "Novembro 2021") %>%
-  ggplot(aes(x = Filter,
-             # x = Site,
-             # x = Year_Level,
-             y = alpha_d_order,
-             fill = `Curated ID`)) +
-  geom_col(position = "fill") +
-  geom_text(aes(label = sprintf("%0.1f%%",`alpha_d_order_%`)), #adicionando % dentro das barras
-            position = position_fill(vjust = 0.5),
-            color = "black") +
-  facet_grid(rows = vars(Site),
-  space = "free", 
-  scales = "free",
-  drop = TRUE) +
-  coord_flip() + #virando 90o o grafico
-  guides(fill = guide_legend("Curated ID")) + ## alterar o titulo da legenda 
-  theme(panel.grid.major = element_line(color = "grey",
-                                        linewidth = 0.2,
-                                        linetype = 1),
-        axis.ticks = element_blank(),
-        axis.text = element_text(color = "black"),
-        axis.title = element_text(color = "black", size = rel(1.2)),
-        legend.text = element_text(color = "black"),
-        legend.title = element_text(color = "black", size = rel(1.2)),
-        plot.title = element_text(color = "black", size = rel(1.5)),
-        plot.subtitle = element_text(color = "black", size = rel(1.2))
-        ) +
-  theme(plot.title = element_text(size = 20, face = "bold"),
-        axis.text.x = element_text(size = 20), ## definindo o tamanho de cada texto
-        axis.text.y = element_text(size = 20),
-        axis.title.x = element_text(size = 20, face = "bold"),
-        axis.title.y = element_text(size = 20, face = "bold"),
-        legend.text = element_text(size = 19),
-        legend.title = element_text(size = 19),
-        strip.text = element_text(size = 15, face = "bold"),
-        legend.position = "bottom",
-        legend.background = element_rect(fill = "lightgray", color = NA)) +
-  scale_y_continuous(labels = scales::percent) +
-  scale_fill_manual(values = c("#1f77b4",  # Azul
-                               "#ff7f0e",  # Laranja
-                               "#2ca02c",  # Verde
-                               "#d62728",  # Vermelho
-                               "#9467bd",  # Roxo
-                               "#8c564b",  # Marrom
-                               "#e377c2",  # Rosa
-                               "#7f7f7f",  # Cinza
-                               "#bcbd22",  # Verde-amarelado
-                               "#17becf",  # Ciano
-                               "#fdae61",  # Laranja-claro
-                               "#ff9896",  # Rosa-pálido
-                               "#c49c94",  # Marrom-claro
-                               "#aec7e8",  # Azul-claro
-                               "#ffbb78",  # Laranja-suave
-                               "#98df8a",  # Verde-pálido
-                               "#c5b0d5",  # Lilás
-                               "#ff9896",  # Rosa-suave
-                               "#dbdb8d",  # Amarelo-pálido
-                               "#9edae5",  # Azul-petróleo claro
-                               "#ad494a",  # Vinho
-                               "#d53e4f",  # Rosa-forte
-                               "#393b79",  # Azul-marinho
-                               "#637939",  # Verde-musgo
-                               "#8c6d31",  # Dourado-escuro
-                               "#66c2a5",   # Verde-turquesa
-                               "#5254a3",  # Azul-índigo
-                               "#6b6ecf",  # Azul-púrpura
-                               "#bd9e39"   # Mostarda-claro
-                               )) +
-  labs(x = "Filter", y = "Proportion")
-
-id_prop_MCE_STX
-
-ggsave(plot = id_prop_MCE_STX,
-         filename = paste0(figs_path, "/alpha_ids_MCE-STX_prop_HoH", "-", Sys.Date(), ".pdf", sep = ""),
-         device = "pdf", units = "cm", height = 22.5, width = 50, dpi = 600)
-}
+         filename = paste0(figs_path, "/alpha_fam_HoH", "-", Sys.Date(), ".pdf", sep = ""),
+       units = "cm", 
+       height = 20.5, 
+       width = 30, 
+       dpi = 600)
 
 # Tile plots 
 {
@@ -1259,439 +954,200 @@ ggsave(plot = id_prop_MCE_STX,
     # Defining spp levels
     spp_levels <- grouped_filt_tbl$`Curated ID` %>% 
       sort() %>% unique()
-    
-    # Defining sample levels
-    grouped_filt_tbl$Sample %>% unique()
-    
-    samples <- c("L1_nov_dec_20_mi",
-                 "L2_dez20",
-                 "L2_nov20",
-                 "L1_out21",
-                 "L2_out21",
-                 "L3_out21",
-                 "L4_out21",
-                 "L1_nov21",
-                 "L2_nov21",
-                 "L3_nov21",
-                 "L4_nov21",
-                 "STX_L1_nov21",
-                 "STX_L2_nov21",
-                 "STX_L3_nov21",
-                 "STX_L4_nov21",
-                 "L1_jan22",
-                 "L2_jan22",
-                 "L3_jan22",
-                 "L4_jan22"
-    )
-    
-    # Defining Expedition levels
-    grouped_filt_tbl$Expedition %>% unique()
-    
-    Expeditions <- c("Novembro e Dezembro 2020",
-                     "Novembro 2020",
-                     "Dezembro 2020",
-                     "Outubro 2021",
-                     "Novembro 2021",
-                     "Janeiro 2022")
-    
   }
   
   # Tile plots 
   {
-    # All Years (only MCE Filters) HoH suggestions
+    # All Years (only MCE Filters) 
     tile_all <- grouped_filt_tbl %>%
-      mutate(`Curated ID` = factor(`Curated ID`, levels = rev(spp_Levels))) %>%
-      # mutate(Expedition = factor(Expedition, levels = Expeditions)) %>%
-      # mutate(Sample = factor(Sample, levels = samples)) %>% 
-      mutate(Site = factor(Site)) %>% 
-      mutate(Order = factor(Order)) %>%
-      mutate(Year_Level = case_when(
-        Year == "2020" ~ "2020 - Full",
-        Year == "2021" ~ "2021 - Empty",
-        Year == "2022" ~ "2022 - Full"
-      )) %>%
-      # group_by(Expedition, `Curated ID`, Site, Order, Level) %>%   # Agrupa por expedição, Curated ID e Point
-      filter(Filter %in% c("MCE")) %>%
-      ggplot(aes(y = `Curated ID`, 
-                 group = `Curated ID`,
-                 # x = Site,
-                 x = Year_Level,
-                 fill = RRA)) +
+      # filter(Level %in% "Full") %>% 
+      # filter(Level %in% "Low") %>% 
+      mutate(`Curated ID` = factor(`Curated ID`, levels = rev(spp_levels)),
+             Site = factor(Site),
+             Year_Level = case_when(Year == "2020" ~ "High",
+                                    Year == "2021" ~ "Low",
+                                    Year == "2022" ~ "High"),
+             Order_abrev = case_when(Order == "Characiformes" ~ "Char",
+                                     Order == "Cichliformes" ~ "Cich",
+                                     Order == "Siluriformes" ~ "Sil",
+                                     Order == "Cyprinodontiformes" ~ "Cypr"),
+             Order_abrev = factor(Order_abrev, levels = c("Char", "Cich", 
+                                                          "Cypr", "Sil"))) %>%
+      ggplot(aes(
+        y = `Curated ID`,
+        # x = Year_Level,
+        x = Site,
+        fill = RRA
+        )) +
       geom_tile() +
-      # geom_text(aes(label= sprintf("%0.2f", round(RRA, digits = 2))), # exibindo os valores de RRA dentro dos tiles para facilitar a discussao (opcional)
+      #geom_text(aes(label= sprintf("%0.2f", round(RRA, digits = 2))), 
       # stat = "identity",
       # colour = "black", size = 4) +
-      facet_grid(cols = vars(Site),
-                 # cols = vars(Year_Level),
-                 rows = vars(Order),
-                 space = "free", 
-                 scales = "free",
-                 drop = TRUE) +
-      scale_fill_gradientn(name = "RRA (%)",
-                           # colours = c("white", "yellow", "green", "darkgreen", "blue"),
-                           colours = rev(c("#30123BFF", "#4662D7FF", "darkgreen", "#72FE5EFF", "#C7EF34FF",
-                                           "#FABA39FF", "#F66B19FF", "#CB2A04FF", "#7A0403FF")),
-                           # colours = c("white", "#FDE725FF", "#6DCD59FF", "#35B779FF", "#3E4A89FF"),
-                           # colours = c("#440154FF", "#482878FF", "#3E4A89FF", "#31688EFF",
-                           #             "#26828EFF", "#1F9E89FF", "#35B779FF", "#6DCD59FF",
-                           #             "#B4DE2CFF", "#FDE725FF"),
-                           values = scales::rescale(c(0, 0.01, 0.05, 0.25, 1, 2.5, 5, 10, 25, 50, 75, 100)),
-                           breaks = c(0, 0.01, 0.05, 0.25, 1.00, 2.50, 5.00, 10.00, 25.00, 50.00, 100.00), # Quebras exatas
-                           labels = function(x) scales::number(x, accuracy = 0.01, trim = FALSE), # Precisão exata
-                           limits = c(0.01, 100),
-                           na.value = "#7A0403FF",
-                           trans = "log10"
-      ) +
-      scale_colour_gradientn(name = "RRA (%)",
-                             # colours = rev(c("white", "yellow", "green", "darkgreen", "blue")),
-                             colours = rev(c("#30123BFF", "#4662D7FF", "darkgreen", "#72FE5EFF", "#C7EF34FF",
-                                             "#FABA39FF", "#F66B19FF", "#CB2A04FF", "#7A0403FF")),
-                             # colours = rev(c("white", "#FDE72C5FF", "#6DCD59FF", "#35B779FF", "#3E4A89FF")),
-                             # colours = c("#440154FF", "#482878FF", "#3E4A89FF", "#31688EFF",
-                             #             "#26828EFF", "#1F9E89FF", "#35B779FF", "#6DCD59FF",
-                             #             "#B4DE2CFF", "#FDE725FF"),
-                             values = scales::rescale(c(0, 0.01, 0.05, 0.25, 1, 2.5, 5, 10, 25, 50, 75, 100)),
-                           breaks = c(0, 0.01, 0.05, 0.25, 1.00, 2.50, 5.00, 10.00, 25.00, 50.00, 100.00), # Quebras exatas
-                             labels = function(x) scales::number(x, accuracy = 0.01, trim = FALSE), # Precisão exata
-                             limits = c(0.01, 100),
-                             na.value = "#7A0403FF",
-                             trans = "log10") +
-      theme_minimal() +
-      theme(panel.background = element_blank(), 
-            panel.grid.major = element_line(color = "grey",
-                                            linewidth = 0.2,
-                                            linetype = 1),
-        axis.ticks = element_blank(),
-        axis.text = element_text(color = "black"),
-        axis.title = element_text(color = "black", size = rel(1.2)),
-        legend.text = element_text(color = "black"),
-        legend.title = element_text(color = "black", size = rel(1.2)),
-        plot.title = element_text(color = "black", size = rel(1.5)),
-        plot.subtitle = element_text(color = "black", size = rel(1.2)),
+      facet_grid(
+        # cols = vars(Site),
+        cols = vars(Year_Level),
+        rows = vars(Order_abrev),
+        # rows = vars(Order),
+        space = "free",
+        scales = "free",
+        drop = TRUE
+        ) +
+      scale_fill_gradientn(
+        name = "RRA (%)",
+        colours = rev(c("#30123BFF", "#4662D7FF", "darkgreen", "#72FE5EFF", "#C7EF34FF", "#FABA39FF", "#F66B19FF", "#CB2A04FF", "#7A0403FF")),
+        values = scales::rescale(c(0, 0.01, 0.05, 0.25, 1, 2.5, 5, 10, 25, 50, 75, 100)),
+        breaks = c(0, 0.01, 0.05, 0.25, 1.00, 2.50, 5.00, 10.00, 25.00, 50.00, 100.00),
+        labels = scales::number_format(accuracy = 0.01),
+        limits = c(0.01, 100),
+        na.value = "#7A0403FF",
+        trans = "log10"
+        ) +
+      theme(
+        # panel.background = element_blank(),
+        panel.grid.major = element_line(color = "grey", linewidth = 0.2, linetype = 1),
+        legend.text = element_text(size = 13, color = "black"),
+        legend.title = element_text(size = 14, face = "bold", margin = margin(b = 10), color = "black"),
         strip.background = element_rect(fill = "#e4e4e4"),
-        strip.text = element_text(color = "black", size = rel(1.2))) +
-      theme(plot.title = element_text(size = 20, face = "bold"),
-            axis.text.x = element_text(size = 14, angle = 20, hjust = 1, vjust = 1),
-            # axis.text.x = element_text(size = 14, vjust = 1),
-            axis.text.y = element_text(size = 14, face = "italic"),
-            axis.title.x = element_text(size = 14, face = "bold"),
-            axis.title.y = element_text(size = 14, face = "bold"),
-            strip.text = element_text(size = 14, face = "bold"),
-            strip.text.y = element_text(angle=0),
-            legend.text = element_text(size = 13),
-            legend.title = element_text(size = 14, face = "bold", margin = margin(b = 10)),
-            legend.position = "right",
-            legend.key.height = unit(3, 'cm')
-      ) +
-      labs(fill ='RRA (%)',
-           x = "Sample sites",
-           y = "Species"
-      )
+        strip.text = element_text(size = 17, face = "bold", color = "black"),
+        axis.text.x = element_text(size = 15),
+        axis.text.y = element_text(size = 17, face = "italic"),
+        axis.title = element_text(size = 20, face = "bold"),
+        legend.position = "right",
+        legend.key.height = unit(3, 'cm')
+        ) +
+      labs(
+        fill = 'RRA (%)',
+        x = "Sampling site",
+        y = "Species"
+        )
     
     tile_all
     
     ggsave(plot = tile_all,
            filename = paste("/home/gabriel/projetos/LI_paper/results/figures/",
-                            "tile_20-22_MCE_HoH", "-", Sys.Date(), ".pdf", sep = ""),
-           device = "pdf", units = "cm", height = 20, width = 30, dpi = 600)
-    
-    # MCE versus Sterivex HoH suggestions
-    tile_mce_vs_sterivex <- grouped_sampled_filt_tbl %>%
-      mutate(`Curated ID` = factor(`Curated ID`, levels = rev(spp_levels))) %>%
-      mutate(Site = factor(Site)) %>% 
-      mutate(Order = factor(Order)) %>%
-      mutate(Year_Level = case_when(
-        Year == "2020" ~ "2020 - Full",
-        Year == "2021" ~ "2021 - Low",
-        Year == "2022" ~ "2022 - Full"
-      )) %>%
-      filter(Expedition %in% c("Novembro 2021")) %>%
-      ggplot(aes(y = `Curated ID`, 
-                 group = `Curated ID`,
-                 x = Filter,
-                 # x = Site,
-                 fill = RRA)) +
-      geom_tile() +
-      # geom_text(aes(label= sprintf("%0.2f", round(RRA, digits = 2))),
-      #           stat = "identity",
-      #           colour = "black", size = 4) +
-      facet_grid(cols = vars(Site),
-                 rows = vars(Order),
-                 space = "free", 
-                 scales = "free",
-                 drop = TRUE) +
-      scale_fill_gradientn(name = "RRA (%)",
-                           # colours = c("white", "yellow", "green", "darkgreen", "blue"),
-                           colours = rev(c("#30123BFF", "#4662D7FF", "darkgreen", "#72FE5EFF", "#C7EF34FF",
-                                           "#FABA39FF", "#F66B19FF", "#CB2A04FF", "#7A0403FF")),
-                           # colours = c("white", "#FDE725FF", "#6DCD59FF", "#35B779FF", "#3E4A89FF"),
-                           # colours = c("#440154FF", "#482878FF", "#3E4A89FF", "#31688EFF",
-                           #             "#26828EFF", "#1F9E89FF", "#35B779FF", "#6DCD59FF",
-                           #             "#B4DE2CFF", "#FDE725FF"),
-                           values = scales::rescale(c(0, 0.01, 0.05, 0.25, 1, 2.5, 5, 10, 25, 50, 75, 100)),
-                           breaks = c(0, 0.01, 0.05, 0.25, 1.00, 2.50, 5.00, 10.00, 25.00, 50.00, 100.00), # Quebras exatas
-                           labels = function(x) scales::number(x, accuracy = 0.01, trim = FALSE), # Precisão exata
-                           limits = c(0.01, 100),
-                           na.value = "#7A0403FF",
-                           trans = "log10"
-      ) +
-      scale_colour_gradientn(name = "RRA (%)",
-                             # colours = rev(c("white", "yellow", "green", "darkgreen", "blue")),
-                             colours = rev(c("#30123BFF", "#4662D7FF", "darkgreen", "#72FE5EFF", "#C7EF34FF",
-                                             "#FABA39FF", "#F66B19FF", "#CB2A04FF", "#7A0403FF")),
-                             # colours = rev(c("white", "#FDE72C5FF", "#6DCD59FF", "#35B779FF", "#3E4A89FF")),
-                             # colours = c("#440154FF", "#482878FF", "#3E4A89FF", "#31688EFF",
-                             #             "#26828EFF", "#1F9E89FF", "#35B779FF", "#6DCD59FF",
-                             #             "#B4DE2CFF", "#FDE725FF"),
-                             values = scales::rescale(c(0, 0.01, 0.05, 0.25, 1, 2.5, 5, 10, 25, 50, 75, 100)),
-                           breaks = c(0, 0.01, 0.05, 0.25, 1.00, 2.50, 5.00, 10.00, 25.00, 50.00, 100.00), # Quebras exatas
-                             labels = function(x) scales::number(x, accuracy = 0.01, trim = FALSE), # Precisão exata
-                             limits = c(0.01, 100),
-                             na.value = "#7A0403FF",
-                             trans = "log10") +
-      theme_minimal() +
-      theme(
-        panel.background = element_blank(),
-        panel.grid.major = element_line(color = "grey",
-                                        linewidth = 0.2,
-                                        linetype = 1),
-        axis.ticks = element_blank(),
-        axis.text = element_text(color = "black"),
-        axis.title = element_text(color = "black", size = rel(1.2)),
-        legend.text = element_text(color = "black"),
-        legend.title = element_text(color = "black", size = rel(1.2)),
-        plot.title = element_text(color = "black", size = rel(1.5)),
-        plot.subtitle = element_text(color = "black", size = rel(1.2)),
-        strip.background = element_rect(fill = "#e4e4e4"),
-        strip.text = element_text(color = "black", size = rel(1.2))) +
-      theme(
-        plot.title = element_text(size = 20, face = "bold"),
-        # axis.text.x = element_text(size = 14, angle = 20, hjust = 1, vjust = 1),
-        axis.text.x = element_text(size = 14, vjust = 1),
-        axis.text.y = element_text(size = 14, face = "italic"),
-        axis.title.x = element_text(size = 14, face = "bold"),
-        axis.title.y = element_text(size = 14, face = "bold"),
-        strip.text = element_text(size = 14, face = "bold"),
-        strip.text.y = element_text(angle=0),
-        legend.text = element_text(size = 13),
-        legend.title = element_text(size = 14, face = "bold", margin = margin(b = 10)),
-        legend.key.height = unit(3, 'cm')
-      ) +
-      labs(fill = "RRA%",
-           x = "Sample sites",
-           y = "Species")
-    
-    tile_mce_vs_sterivex
-    
-    ggsave(plot = tile_mce_vs_sterivex,
-           filename = paste("/home/gabriel/projetos/LI_paper/results/figures/",
-                            "tile_MCE_Sterivex_HoH", "-", Sys.Date(), ".pdf", sep = ""),
-           device = "pdf", units = "cm", height = 20, width = 30, dpi = 600)
-    
-    # Empty versus Full (SBG) HoH suggestions
-    # tile_sbg_full_vs_low <- grouped_sampled_filt_tbl %>%
-    #   # filter(RRA >= 0.01) %>%
-    #   filter(Filter %in% c("MCE")) %>%
-    #   mutate(`Curated ID` = factor(`Curated ID`, levels = rev(spp_Levels))) %>% 
-    #   mutate(Site = factor(Site)) %>%
-    #   mutate(Order = factor(Order)) %>%
-    #   group_by(`Curated ID`, Site, Order, Level) %>%   # Agrupa por expedição, Curated ID e Point
-    #   ggplot(aes(y = `Curated ID`,
-    #              group = `Curated ID`,
-    #              x = Level,
-    #              fill = RRA)) +
-    #   geom_tile() +
-    #   # geom_text(aes(label= sprintf("%0.2f", round(RRA, digits = 2))), # exibindo os valores de RRA dentro dos tiles para facilitar a discussao (opcional)
-    #   # stat = "identity",
-    #   # colour = "black", size = 4) +
-    #   facet_grid(cols = vars(Site),
-    #              rows = vars(Order),
-    #              space = "free",
-    #              scales = "free",
-    #              drop = TRUE) +
-    #         scale_fill_gradientn(name = "RRA (%)",
-    #                        # colours = c("white", "yellow", "green", "darkgreen", "blue"),
-    #                        colours = rev(c("#30123BFF", "#4662D7FF", "darkgreen", "#72FE5EFF", "#C7EF34FF",
-    #                                        "#FABA39FF", "#F66B19FF", "#CB2A04FF", "#7A0403FF")),
-    #                        # colours = c("white", "#FDE725FF", "#6DCD59FF", "#35B779FF", "#3E4A89FF"),
-    #                        # colours = c("#440154FF", "#482878FF", "#3E4A89FF", "#31688EFF",
-    #                        #             "#26828EFF", "#1F9E89FF", "#35B779FF", "#6DCD59FF",
-    #                        #             "#B4DE2CFF", "#FDE725FF"),
-    #                        values = scales::rescale(c(0, 0.01, 0.05, 0.25, 1, 2.5, 5, 10, 25, 50, 75, 100)),
-    #                        breaks = c(0, 0.01, 0.05, 0.25, 1.00, 2.50, 5.00, 10.00, 25.00, 50.00, 100.00), # Quebras exatas
-    #                        labels = function(x) scales::number(x, accuracy = 0.01, trim = FALSE), # Precisão exata
-    #                        limits = c(0.01, 100),
-    #                        na.value = "#7A0403FF",
-    #                        trans = "log10"
-    #   ) +
-    #   scale_colour_gradientn(name = "RRA (%)",
-    #                          # colours = rev(c("white", "yellow", "green", "darkgreen", "blue")),
-    #                          colours = rev(c("#30123BFF", "#4662D7FF", "darkgreen", "#72FE5EFF", "#C7EF34FF",
-    #                                          "#FABA39FF", "#F66B19FF", "#CB2A04FF", "#7A0403FF")),
-    #                          # colours = rev(c("white", "#FDE72C5FF", "#6DCD59FF", "#35B779FF", "#3E4A89FF")),
-    #                          # colours = c("#440154FF", "#482878FF", "#3E4A89FF", "#31688EFF",
-    #                          #             "#26828EFF", "#1F9E89FF", "#35B779FF", "#6DCD59FF",
-    #                          #             "#B4DE2CFF", "#FDE725FF"),
-    #                          values = scales::rescale(c(0, 0.01, 0.05, 0.25, 1, 2.5, 5, 10, 25, 50, 75, 100)),
-    #                        breaks = c(0, 0.01, 0.05, 0.25, 1.00, 2.50, 5.00, 10.00, 25.00, 50.00, 100.00), # Quebras exatas
-    #                          labels = function(x) scales::number(x, accuracy = 0.01, trim = FALSE), # Precisão exata
-    #                          limits = c(0.01, 100),
-    #                          na.value = "#7A0403FF",
-    #                          trans = "log10") +
-    #   theme_minimal() +
-    #   theme(panel.background = element_blank(), 
-    #         panel.grid.major = element_line(color = "grey",
-    #                                         size = 0.2,
-    #                                         linetype = 1),
-    #     axis.ticks = element_blank(),
-    #     axis.text = element_text(color = "black"),
-    #     axis.title = element_text(color = "black", size = rel(1.2)),
-    #     legend.text = element_text(color = "black"),
-    #     legend.title = element_text(color = "black", size = rel(1.2)),
-    #     plot.title = element_text(color = "black", size = rel(1.5)),
-    #     plot.subtitle = element_text(color = "black", size = rel(1.2)),
-    #     strip.background = element_rect(fill = "#e4e4e4"),
-    #     strip.text = element_text(color = "black", size = rel(1.2))) +
-    #   theme(
-    #     plot.title = element_text(size = 20, face = "bold"),
-    #     # axis.text.x = element_text(size = 14, angle = 20, hjust = 1, vjust = 1),
-    #     axis.text.x = element_text(size = 14, vjust = 1),
-    #     axis.text.y = element_text(size = 14, face = "italic"),
-    #     axis.title.x = element_text(size = 14, face = "bold"),
-    #     axis.title.y = element_text(size = 14, face = "bold"),
-    #     strip.text = element_text(size = 14, face = "bold"),
-    #     strip.text.y = element_text(angle=0),
-    #     legend.text = element_text(size = 13),
-    #     legend.title = element_text(size = 14, face = "bold", margin = margin(b = 10)),
-    #     legend.key.height = unit(3, 'cm')) +
-    #   labs(fill = "RRA (%)",
-    #        x = "Sample sites",
-    #        y = "Species")
-    #   
-    # tile_sbg_full_vs_low
-    # 
-    #  ggsave(plot = tile_sbg_full_vs_low, 
-    #        filename = paste("/home/gabriel/projetos/LI_paper/results/figures/",
-    #                         "tile_sbg_Full_vs_Low_HoH", "-", Sys.Date(), ".pdf", sep = ""),
-    #        device = "pdf", units = "cm", height = 20, width = 30, dpi = 600)
-     
-     # Tile all samples
-    tile_all_samples <- grouped_sampled_filt_tbl %>%
-      mutate(`Curated ID` = factor(`Curated ID`, levels = rev(spp_Levels))) %>% 
-      mutate(Site = factor(Site)) %>%
-      mutate(Order = factor(Order)) %>%
-      group_by(`Curated ID`, Site, Order, Level) %>%   # Agrupa por expedição, Curated ID e Point
-      ggplot(aes(y = `Curated ID`,
-                 group = `Curated ID`,
-                 x = Filter,
-                 fill = RRA)) +
-      geom_tile() +
-      # geom_text(aes(label= sprintf("%0.2f", round(RRA, digits = 2))), # exibindo os valores de RRA dentro dos tiles para facilitar a discussao (opcional)
-      # stat = "identity",
-      # colour = "black", size = 4) +
-      facet_grid(cols = vars(Sample),
-                 rows = vars(Order),
-                 space = "free",
-                 scales = "free",
-                 drop = TRUE) +
-            scale_fill_gradientn(name = "RRA (%)",
-                           # colours = c("white", "yellow", "green", "darkgreen", "blue"),
-                           colours = rev(c("#30123BFF", "#4662D7FF", "darkgreen", "#72FE5EFF", "#C7EF34FF",
-                                           "#FABA39FF", "#F66B19FF", "#CB2A04FF", "#7A0403FF")),
-                           # colours = c("white", "#FDE725FF", "#6DCD59FF", "#35B779FF", "#3E4A89FF"),
-                           # colours = c("#440154FF", "#482878FF", "#3E4A89FF", "#31688EFF",
-                           #             "#26828EFF", "#1F9E89FF", "#35B779FF", "#6DCD59FF",
-                           #             "#B4DE2CFF", "#FDE725FF"),
-                           values = scales::rescale(c(0, 0.01, 0.05, 0.25, 1, 2.5, 5, 10, 25, 50, 75, 100)),
-                           breaks = c(0, 0.01, 0.05, 0.25, 1.00, 2.50, 5.00, 10.00, 25.00, 50.00, 100.00), # Quebras exatas
-                           labels = function(x) scales::number(x, accuracy = 0.01, trim = FALSE), # Precisão exata
-                           limits = c(0.01, 100),
-                           na.value = "#7A0403FF",
-                           trans = "log10"
-      ) +
-      scale_colour_gradientn(name = "RRA (%)",
-                             # colours = rev(c("white", "yellow", "green", "darkgreen", "blue")),
-                             colours = rev(c("#30123BFF", "#4662D7FF", "darkgreen", "#72FE5EFF", "#C7EF34FF",
-                                             "#FABA39FF", "#F66B19FF", "#CB2A04FF", "#7A0403FF")),
-                             # colours = rev(c("white", "#FDE72C5FF", "#6DCD59FF", "#35B779FF", "#3E4A89FF")),
-                             # colours = c("#440154FF", "#482878FF", "#3E4A89FF", "#31688EFF",
-                             #             "#26828EFF", "#1F9E89FF", "#35B779FF", "#6DCD59FF",
-                             #             "#B4DE2CFF", "#FDE725FF"),
-                             values = scales::rescale(c(0, 0.01, 0.05, 0.25, 1, 2.5, 5, 10, 25, 50, 75, 100)),
-                           breaks = c(0, 0.01, 0.05, 0.25, 1.00, 2.50, 5.00, 10.00, 25.00, 50.00, 100.00), # Quebras exatas
-                             labels = function(x) scales::number(x, accuracy = 0.01, trim = FALSE), # Precisão exata
-                             limits = c(0.01, 100),
-                             na.value = "#7A0403FF",
-                             trans = "log10") +
-      theme_minimal() +
-      theme(panel.background = element_blank(), 
-            panel.grid.major = element_line(color = "grey",
-                                            size = 0.2,
-                                            linetype = 1),
-        axis.ticks = element_blank(),
-        axis.text = element_text(color = "black"),
-        axis.title = element_text(color = "black", size = rel(1.2)),
-        legend.text = element_text(color = "black"),
-        legend.title = element_text(color = "black", size = rel(1.2)),
-        plot.title = element_text(color = "black", size = rel(1.5)),
-        plot.subtitle = element_text(color = "black", size = rel(1.2)),
-        strip.background = element_rect(fill = "#e4e4e4"),
-        strip.text = element_text(color = "black", size = rel(1.2))) +
-      theme(
-        plot.title = element_text(size = 20, face = "bold"),
-        # axis.text.x = element_text(size = 14, angle = 20, hjust = 1, vjust = 1),
-        axis.text.x = element_text(size = 14, vjust = 1),
-        axis.text.y = element_text(size = 14, face = "italic"),
-        axis.title.x = element_text(size = 14, face = "bold"),
-        axis.title.y = element_text(size = 14, face = "bold"),
-        strip.text = element_text(size = 14, face = "bold"),
-        strip.text.y = element_text(angle=0),
-        legend.text = element_text(size = 13),
-        legend.title = element_text(size = 14, face = "bold", margin = margin(b = 10)),
-        legend.key.height = unit(3, 'cm')) +
-      labs(fill = "RRA (%)",
-           x = "Sample sites",
-           y = "Species")
-      
-    tile_all_samples
-    
-     ggsave(plot = tile_all_samples, 
-           filename = paste("/home/gabriel/projetos/LI_paper/results/figures/",
-                            "tile_all_samples", "-", Sys.Date(), ".pdf", sep = ""),
-           device = "pdf", units = "cm", height = 20, width = 30, dpi = 600)
-     
+                            "tile_20-22_MCE", "-", Sys.Date(), ".pdf", sep = ""),
+           units = "cm", 
+           height = 20.5, 
+           width = 25.5, 
+           dpi = 600)
   }
 }
+
+# Alpha diversity 
+
+## Tax table
+# blast_tax_tbl <- grouped_sampled_filt_tbl %>% 
+blast_tax_tbl <- grouped_filt_tbl %>% 
+  dplyr::select(c("Curated ID",
+                  "Genus",
+                  "Family",
+                  "Order",
+                  "Class")
+                ) %>% 
+  unique() %>% 
+  as.data.frame() %>% 
+  `rownames<-`(.$`Curated ID`) %>% 
+  dplyr::select(-c("Curated ID")) %>% 
+  as.matrix()
+  
+## OTU table
+
+# otu_tbl <- grouped_sampled_filt_tbl %>%
+otu_tbl <- grouped_filt_tbl %>%
+  unite(Site, Level, Year, col = "Sample", remove = FALSE) %>%
+  # select(Sample, RRA, `Curated ID`) %>% 
+  # select(Sample, Abundance, `Curated ID`) %>% 
+  # select(Abundance, `Curated ID`) %>% 
+  select(Sample, Reads, `Curated ID`) %>%
+  pivot_wider(
+    id_cols = `Curated ID`,
+    # values_from = RRA,
+    # values_from = Abundance,
+    values_from = Reads,
+    values_fn = sum_uniq,
+    names_from = Sample,
+    names_sort = TRUE) %>% 
+  mutate(across(starts_with("P") ,~ replace_na(.,replace = 0))) %>%
+  # mutate(across(starts_with("L") ,~ replace_na(.,replace = 0))) %>%
+  mutate_if(is.numeric, jaccarize) %>% 
+  as.data.frame() %>% 
+  column_to_rownames(var = "Curated ID") %>% 
+  dplyr::filter(rowSums(.)!= 0) %>%
+  dplyr::select(which(!colSums(., na.rm = TRUE) %in% 0))
+
+## Metadata table
+
+metadata_tbl <-
+  # grouped_sampled_filt_tbl %>%
+  grouped_filt_tbl %>%
+  ungroup() %>%
+  unite(Site, Level, Year, col = "Sample", remove = FALSE) %>%
+  select(Sample, Site, Level, Year) %>%
+  as.data.frame() %>% 
+  unique() %>% 
+  `rownames<-`(.$Sample)
+
+## Creating Phyloseq object
+
+phyloseq_tbl <- phyloseq(otu_table(otu_tbl, ,taxa_are_rows = TRUE),
+                         sample_data(metadata_tbl),
+                         tax_table(blast_tax_tbl)) 
+## Estimating richness
+
+rich_tbl <- estimate_richness(phyloseq_tbl,
+                              split = TRUE,
+                              measures = c("Observed", "Chao1","Obs./Chao1",
+                                           "se.chao1","ACE", "se.ACE",
+                                           "Shannon","Simpson", "InvSimpson")) %>% 
+  as_tibble(rownames = "Sample") %>% 
+  mutate("Obs./Chao1" = Observed/Chao1) %>% 
+  pivot_longer(cols = c("Observed", "Chao1","Obs./Chao1", "se.chao1",
+                        "ACE", "se.ACE", "Shannon", "Simpson", "InvSimpson"),
+               names_to = "Indice",
+               values_to = "Values") %>%
+  mutate(Indice = factor(Indice, levels = c("Observed", "Chao1",
+                                            "Obs./Chao1", "se.chao1",
+                                            "ACE", "se.ACE", "Shannon",
+                                            "Simpson", "InvSimpson"))) %>% 
+  left_join(y = metadata_tbl,
+            by = "Sample")
+  
+boxplot_alpha <- rich_tbl %>% 
+  filter(Indice %in% "Observed") %>% 
+  ggplot(aes(x = Level,
+             y = Values)) +
+  geom_boxplot(fill = c("#3381b1", "#f1c232"),
+               alpha = 0.7) +
+  geom_jitter(width = 0.2, alpha = 0.5) +
+  theme(panel.grid.major = element_line(color = "grey", linewidth = 0.2, linetype = 1),
+        strip.background = element_rect(fill = "#e4e4e4"),
+        strip.text = element_text(size = 17, face = "bold", color = "black"),
+        axis.text.x = element_text(size = 17),
+        axis.text.y = element_text(size = 17),
+        axis.title = element_text(size = 20, face = "bold")) +
+      labs(x = "Water level",
+           y = "Richness")
+
+boxplot_alpha
+
+ggsave(plot = boxplot_alpha,
+           filename = paste("/home/gabriel/projetos/LI_paper/results/figures/",
+                            "boxplot_alpha_levels", "-", Sys.Date(), ".pdf", sep = ""),
+           units = "cm", 
+           height = 9, 
+           width = 10, 
+           dpi = 600)
+  
 
 # Venn diagram 
 {
   # Filtering
-  resume_venn <- grouped_sampled_filt_tbl %>%
-    select(`Curated ID`, Genus, Family, Order, Filter, Level, Expedition, Site) %>%
+  resume_venn <- grouped_filt_tbl %>%
+    select(`Curated ID`, Genus, Family, Order, Filter, Level, ) %>%
     unique()
   
-  # 1a. Common spp between MCE and Sterivex
+  # Common spp between High and Low
   spp_comm <- resume_venn %>% 
-    filter(Expedition %in% "Novembro 2021") %>% 
-    group_by(`Curated ID`) %>% # Trocar para spp, genero, familia e ordem
-    summarise(n_filtros = n_distinct(Filter)) %>%
-    filter(n_filtros >= 2) %>%
-    select(`Curated ID`) # Trocar para spp, genero, familia e ordem
-  View(spp_comm)
-  
-  # 1b. Exclusive spp MCE and Sterivex
-  spp_diff <- resume_venn %>%
-    filter(Expedition %in% "Novembro 2021") %>% 
-    group_by(`Curated ID`) %>% # Trocar para spp, genero, familia e ordem
-    summarise(MCE_count = sum(as.integer(Filter == "MCE")),
-              STX_count = sum(as.integer(Filter == "Sterivex")),
-              MCE_only = MCE_count >= 1 & STX_count == 0,
-              STX_only = MCE_count == 0 & STX_count >= 1) %>% 
-    ungroup()
-  View(spp_diff)
-  
-  # 2a. Common spp between Full and Low
-  spp_comm_2 <- resume_venn %>% 
     filter(Filter %in% "MCE") %>%
     group_by(`Curated ID`) %>% # Trocar para spp, genero, familia e ordem
     summarise(n_Level = n_distinct(Level)) %>%
@@ -1699,8 +1155,8 @@ ggsave(plot = id_prop_MCE_STX,
     select(`Curated ID`) # Trocar para spp, genero, familia e ordem
   View(spp_comm_2)
   
-  # 2b. Exclusive spp Full and Low
-  spp_diff_2 <- resume_venn %>%
+  # Exclusive sppHigh and Low
+  spp_diff <- resume_venn %>%
     filter(Filter %in% "MCE") %>%
     group_by(`Curated ID`) %>% # Trocar para spp, genero, familia e ordem
     summarise(Low_count = sum(as.integer(Level == "Low")),
@@ -1708,36 +1164,47 @@ ggsave(plot = id_prop_MCE_STX,
               Low_only = Low_count >= 1 & High_count == 0,
               High_only = Low_count == 0 & High_count >= 1) %>% 
     ungroup()
-  View(spp_diff_2)
+  View(spp_diff)
   
-    # 3a. Common spp between Sample sites
-  spp_comm_3 <- resume_venn %>% 
+    # Common spp between Sample sites
+  spp_comm_2 <- resume_venn %>% 
     group_by(`Curated ID`) %>% # Trocar para spp, genero, familia e ordem
     summarise(n_Level = n_distinct(Site)) %>%
-    filter(n_Level >= 2) %>%
+    filter(n_Level == 4) %>%
     select(`Curated ID`) # Trocar para spp, genero, familia e ordem
   View(spp_comm_3)
   
-  # 3b. Exclusive spp Sample sites
-  spp_diff_3 <- resume_venn %>%
+  # Exclusive spp Sample sites
+  spp_diff_2 <- resume_venn %>%
     group_by(`Curated ID`) %>% # Trocar para spp, genero, familia e ordem
-    summarise(Prainha_count = sum(as.integer(Site == "Prainha")),
-              Ponte_count = sum(as.integer(Site == "Ponte")),
-              Barragem_count = sum(as.integer(Site == "Barragem")),
-              Fundacao_count = sum(as.integer(Site == "Fundação")),
-              Prainha_only = Prainha_count >= 1 & Ponte_count == 0 & Barragem_count == 0 & Fundacao_count == 0,
-              Ponte_only = Ponte_count >= 1 & Prainha_count == 0 & Barragem_count == 0 & Fundacao_count == 0,
-              Barragem_only = Barragem_count >= 1 & Prainha_count == 0 & Ponte_count == 0 & Fundacao_count == 0,
-              Fundacao_only = Fundacao_count >= 1 & Prainha_count == 0 & Ponte_count == 0 & Barragem_count == 0) %>% 
+    summarise(P3_count = sum(as.integer(Site == "P3")),
+              P2_count = sum(as.integer(Site == "P2")),
+              P4_count = sum(as.integer(Site == "P4")),
+              P1_count = sum(as.integer(Site == "P1")),
+              P3_only = P3_count >= 1 & P2_count == 0 & P4_count == 0 & P1_count == 0,
+              P2_only = P2_count >= 1 & P3_count == 0 & P4_count == 0 & P1_count == 0,
+              P4_only = P4_count >= 1 & P3_count == 0 & P2_count == 0 & P1_count == 0,
+              P1_only = P1_count >= 1 & P3_count == 0 & P2_count == 0 & P4_count == 0) %>% 
     ungroup()
-  View(spp_diff_3)
+  View(spp_diff_2)
 }
+
 ```
 
 ## Analysis 
 
 ```{r, eval=FALSE,echo=FALSE}
-## NMDS ----
+## PCoA ----
+
+# Dados
+
+## Gerando uma nova tabela wider_filt_tbl_redux com amostras artificiais
+{
+wider_filt_tbl_redux <- grouped_filt_tbl %>% 
+  mutate(RRA = round(RRA,digits = 4)) %>% 
+  ungroup() %>% 
+  unite(Site, Level, Year, col= "New_sample", remove = FALSE)
+
 # Converter planilha de identificações por ponto para o formato Amostras X IDs
 {
   # Função necessária para juntar as abds da tabela em IDs
@@ -1752,587 +1219,72 @@ ggsave(plot = id_prop_MCE_STX,
   }
   
   # Número de linhas (IDs diferentes) por amostra
-  grouped_sampled_filt_tbl$Sample %>% table()
+  wider_filt_tbl_redux$New_sample %>% table()
   
-  grouped_sampled_filt_tbl %>% colnames()
+  wider_filt_tbl_redux %>% colnames()
   
-  # FINAL_tbl_IDs <- grouped_by_ID_BLASTid %>%
-  FINAL_tbl_IDs <- grouped_sampled_filt_tbl %>%
-    # filter(Expedition %in% c("Novembro 2021")) %>% 
-    # filter(RRA >= 0.05) %>% # definicao de qual threshold de abundancia sera usado
-    # filter(Site %in% c("Ponte", "Fundacao")) %>% 
-    # filter(!Sample %in% c("L2_dez20")) %>% # amostra problematica
-    select(c("Sample", "Curated ID", "Year", "Level", "Site", "Filter", "RRA", "Expedition")) %>% 
-    pivot_wider(id_cols = c("Sample", "Year", "Level", "Site", "Filter", "Expedition"),
+  FINAL_tbl_IDs_2 <- wider_filt_tbl_redux %>%
+    select(c("New_sample", "Curated ID", "Year", "Level", "Site", "Filter", "RRA")) %>% 
+    pivot_wider(id_cols = c("New_sample", "Year", "Level", "Site", "Filter"),
                 names_from = `Curated ID`,
                 values_from = `RRA`,
                 values_fn = sum_uniq,
                 names_sort = TRUE,
                 names_prefix = "ID_") %>% 
-    relocate(c("Sample", "Year", "Level", "Filter", "Site", "Expedition", starts_with("ID_"))) %>%  
+    relocate(c("New_sample", "Year", "Level", "Filter", "Site", starts_with("ID_"))) %>%  
     mutate(across(starts_with("ID_"), \(x) replace_na(x, 0))) %>% 
     mutate("Site" = as.factor(Site)) %>% 
     mutate("Level" = as.factor(Level)) 
   
   # Verificando a soma das linhas
-  FINAL_tbl_IDs %>% select(starts_with(match = "ID_")) %>% rowSums(na.rm = TRUE)
+  FINAL_tbl_IDs_2 %>% select(starts_with(match = "ID_")) %>% rowSums(na.rm = TRUE)
 }
-
-#  Rodando o NMDS
 
 # Preparar dados para entrada no pacote vegan
-colnames(FINAL_tbl_IDs)
-
-FINAL_tbl_IDs$`Sample` %>% unique() %>% sort()
-
-all_IDs_NMDS_tbl <- FINAL_tbl_IDs %>% 
-  mutate("Sample number" = 0) %>% 
-  relocate("Sample number" )
-
-# Associar números de amostra aos nomes de amostra
-for (sample in 1:nrow(all_IDs_NMDS_tbl)) {
-  all_IDs_NMDS_tbl$`Sample number`[sample] <- sample
-}
-
-# Ordenar dataframe usado no NMDS
-all_IDs_NMDS_df <- all_IDs_NMDS_tbl %>%
-  # mutate(Level = ifelse(Level == "Full", "Full", "Empty")) %>%
-  as.data.frame()
-
-# Nomear linhas como números de amostra
-row.names(all_IDs_NMDS_df) <- all_IDs_NMDS_df$`Sample number`
-all_IDs_NMDS_df <- all_IDs_NMDS_df 
-
-# Corrigir nomes das espécies para evitar problemas na plotagem
-colnames(all_IDs_NMDS_df)
-colnames(all_IDs_NMDS_df)[8:ncol(all_IDs_NMDS_df)] <- colnames(all_IDs_NMDS_df)[8:ncol(all_IDs_NMDS_df)] %>%
-  str_replace_all(pattern = " ", replacement = "_") %>% 
-  str_replace_all(pattern = "\\.", replacement = "") %>% 
-  str_replace_all(pattern = "\\(", replacement = "") %>% 
-  str_replace_all(pattern = "\\)", replacement = "")
-
-# Executando o NMDS
-# Esta e a funcao que faz o NMDS. Para ela fornece-se apenas
-# as colunas relativas as especies nas amostras
-all_ps_vegan_ord_meta <- metaMDS(veg = all_IDs_NMDS_df[,8:ncol(all_IDs_NMDS_df)],
-                                 comm = all_IDs_NMDS_df[8:ncol(all_IDs_NMDS_df)],
-                                 # distance = "bray", # Leva em conta o RRA
-                                 distance = "jaccard", # Considera apenas presença/ausenciaa
-                                 halfchange = TRUE 
-)
-
-dim(all_IDs_NMDS_df)
-
-# Fazer o fit das variáveis ambientais
-
-# meta.envfit <- envfit(all_ps_vegan_ord_meta, all_IDs_NMDS_df[, c("Level", "Sample")],
-meta.envfit <- envfit(all_ps_vegan_ord_meta, all_IDs_NMDS_df[, c("Filter", "Sample")],
-                      permutations = 999,
-                      na.rm=TRUE) # this fits environmental vectors
-
-# Espécies 
-
-# Fazer o fit das espécies para identificar a significância delas na explicação dos agrupamentos. 
-# Esse é o passo que mais demora quando com muitas amostras e espécies.
-meta.spp.fit <- envfit(all_ps_vegan_ord_meta, 
-                       all_IDs_NMDS_df[,7:ncol(all_IDs_NMDS_df)], 
-                       permutations = 999) # this fits species vectors
-
-# Obter valores de p para as espécies
-sps_pvals <- tibble("IDs" = names(meta.spp.fit$vectors$pvals),
-                    "p-value" = meta.spp.fit$vectors$pvals)
-
-spp.scrs <- as.data.frame(scores(meta.spp.fit, display = "vectors")) %>%
-  mutate("IDs" = rownames(.)) %>%
-  left_join(y = sps_pvals, by = "IDs")
-
 {
-  spp.scrs$IDs <- gsub("ID_", "", spp.scrs$IDs)
-  spp.scrs$IDs <- gsub("_", " ", spp.scrs$IDs)
-  } 
-
-# Selecionar espécies significativas
-# sig.spp.scrs <- spp.scrs %>%
-  # filter(`p-value` <=
-           # 0.05) # definir p-value aqui!
-
-# Pontos amostrais
-
-# Definir os valores de NMDS1 e NMDS2, e os metadados de cada amostra/ponto amostral
-site.scrs <- as.data.frame(scores(all_ps_vegan_ord_meta, display = "sites")) %>%
-  mutate("Sample number" = as.double(row.names(.))) %>%
-  left_join(y = all_IDs_NMDS_df[, c("Sample number",
-                                    "Sample",
-                                    "Level",
-                                    "Site",
-                                    "Filter"
-  )], 
-  by = "Sample number")
-
-# Determinar centroides
-scrs <- scores(all_ps_vegan_ord_meta, display = "sites")
-
-cent <- aggregate(scrs ~ Filter, data = site.scrs, FUN = "mean")
-
-# Calcular elipses
-NMDS <- data.frame("MDS1" = all_ps_vegan_ord_meta$points[, 1],
-                   "MDS2" = all_ps_vegan_ord_meta$points[, 2],
-                   "Filter" = as.factor(all_IDs_NMDS_df$Filter), check.names = FALSE)
-
-NMDS.mean <- aggregate(NMDS[, 1:2], list(group = NMDS$Filter), "mean")
-
-
-# Elipses
-{
-  plot(all_ps_vegan_ord_meta)
+  colnames(FINAL_tbl_IDs_2)
   
-  # Sobrepor as elipses
-  ord <- ordiellipse(ord = all_ps_vegan_ord_meta, 
-                     groups = all_IDs_NMDS_df$Filter,
-                     display = "sites",
-                     kind = "ehull", conf = 0.95, label = T)
+  FINAL_tbl_IDs_2$`New_sample` %>% unique() %>% sort()
   
+  all_IDs_PCoA_tbl <- FINAL_tbl_IDs_2 %>% 
+    mutate("Sample number" = 0) %>% 
+    relocate("Sample number" )
   
-  # Funcao do vegan de calcular elipses
-  veganCovEllipse<-function (cov, center = c(0, 0), scale = 1, npoints = 100) 
-  {
-    theta <- (0:npoints) * 2 * pi/npoints
-    Circle <- cbind(cos(theta), sin(theta))
-    t(center + scale * t(Circle %*% chol(cov)))
+  # Associar números de amostra aos nomes de amostra
+  for (sample in 1:nrow(all_IDs_PCoA_tbl)) {
+    all_IDs_PCoA_tbl$`Sample number`[sample] <- sample
   }
   
-  df_ell <- data.frame()
+  # Ordenar dataframe usado no NMDS
+  all_IDs_PCoA_df <- all_IDs_PCoA_tbl %>%
+    # mutate(Level = ifelse(Level == "Full", "Full", "Empty")) %>%
+    as.data.frame()
   
-  for(g in levels(NMDS$Filter)){
-    print(g)
-    df_ell <- 
-      rbind(df_ell, 
-            cbind(as.data.frame(with(NMDS[NMDS$Filter==g,],
-                                     veganCovEllipse(
-                                       ord[[g]]$cov,
-                                       ord[[g]]$center,
-                                       ord[[g]]$scale))),
-                  Filter=g))}
+  # Nomear linhas como números de amostra
+  row.names(all_IDs_PCoA_df) <- all_IDs_PCoA_df$`Sample number`
+  all_IDs_PCoA_df <- all_IDs_PCoA_df 
+  
+  # Corrigir nomes das espécies para evitar problemas na plotagem
+  colnames(all_IDs_PCoA_df)
+  colnames(all_IDs_PCoA_df)[8:ncol(all_IDs_PCoA_df)] <- colnames(all_IDs_PCoA_df)[8:ncol(all_IDs_PCoA_df)] %>%
+    str_replace_all(pattern = " ", replacement = "_") %>% 
+    str_replace_all(pattern = "\\.", replacement = "") %>% 
+    str_replace_all(pattern = "\\(", replacement = "") %>% 
+    str_replace_all(pattern = "\\)", replacement = "")
+}
 }
 
-# Configurar plot NMDS
-
-# Definir paleta de cores
-{
-  # paletteer::paletteer_d("colorBlindness::SteppedSequential5Steps")
-  # paletteer::paletteer_d("colorBlindness::SteppedSequential5Steps")[1:3]
-  # paletteer::paletteer_d("colorBlindness::SteppedSequential5Steps")[c(1:3, 2,7,9,10)]
-  # 
-  # my_cols <- c("BAM" = "#0F6B99FF",
-  #              "PARAC" = "#6B990FFF",
-  #              "SAM" = "#99540FFF",
-  #              "SFC" = "#A3CC51FF",
-  #              "SFI" = "#7EC3E5FF",
-  #              "SFM" = "#E5B17EFF") 
-  
-  cores <- c("#f1c232",
-             "#3381b1")
-  
-}
-
-# Plot
-{
-  NMDS_MCE_Sterivex <-
-    ggplot(data = site.scrs,
-           aes(x=NMDS1, 
-               y=NMDS2)) +
-    
-    # Elipses 
-    ggforce::geom_mark_ellipse(inherit.aes = FALSE,
-                               data = df_ell,
-                               aes(x = NMDS1,
-                                   y = NMDS2,
-                                   group = Filter,
-                                   label = Filter,
-                                   col = Filter,
-                                   fill = Filter
-                               ),
-                               alpha=0.10,
-                               # n = 200,
-                               linetype=2,
-                               expand = 0,
-                               label.fontsize = 14,
-                               con.cap = 0.1
-    ) +
-    # Niveis amostrais
-    geom_point(aes(x=NMDS1,
-                   y=NMDS2,
-                   fill = Filter,
-                   # label = `Sampling unit`,  #descomentar se quiser exibir os nomes dos `Sampling sites`s
-                   col=Filter,
-                   group = Filter,
-                   shape = Site),
-               stroke = 0.5,
-               alpha = 0.75,
-               size = 3) +
-    
-    # Nomes dos `Sampling sites`s amostrais
-    ggrepel::geom_text_repel(aes(label = Site),  #descomentar bloco se quiser exibir os nomes dos pontos
-                             # hjust=0.5,
-                             # vjust=2.75,
-                             size=4.5,
-                             direction = "both",
-                             segment.size = 0.25,
-                             segment.alpha=0.1,
-                             # min.segment.length = 1.5,
-                             force = 3,
-                             max.overlaps = 100,
-                             fontface = "bold") +
-    
-    # Vetores das IDs
-    geom_segment(data = sig.spp.scrs, aes(x = 0,
-                                          xend = NMDS1,
-                                          y = 0,
-                                          yend = NMDS2),
-                 arrow = arrow(length = unit(0.1, "cm")),
-                 colour = "grey30",
-                 alpha = 0.5,
-                 lwd = 0.3) + #add vector arrows of significant species
-    
-    # Nomes das IDs
-    ggrepel::geom_text_repel(data = sig.spp.scrs,
-                             aes(x=NMDS1, y=NMDS2, label = IDs),
-                             size = 3.5,
-                             alpha = 0.75,
-                             direction = "both",
-                             segment.size = 0.25,
-                             segment.alpha = 0.1,
-                             max.overlaps = 100) +
-    
-    # Centroides
-    geom_point(data = cent,
-               aes(x = NMDS1,
-                   y = NMDS2, # colour = Filter,
-                   fill = Filter
-               ),
-               size = 8,
-               colour = "#222222",
-               alpha = 0.75,
-               shape  = 13
-    ) + 
-    coord_fixed(expand = c(0.5))+
-    theme_light() +
-    theme(
-      panel.background = element_blank(),
-      # panel.grid.major = element_blank(),
-      panel.grid.major = element_line(color = "grey",
-                                      size = 0.2,
-                                      linewidth = 1),
-      # axis.ticks = element_line(color = "grey"),
-      axis.ticks = element_blank(),
-      axis.text = element_text(color = "black"),
-      axis.title = element_text(color = "black", size = rel(1.2)),
-      # legend.background = element_blank(),
-      # legend.key = element_blank(),
-      legend.text = element_text(color = "black"),
-      legend.title = element_text(color = "black", size = rel(1.2)),
-      plot.title = element_text(color = "black", size = rel(1.5)),
-      plot.subtitle = element_text(color = "black", size = rel(1.2))) +
-    theme(plot.title = element_text(size = 14, face = "bold"),
-          axis.text.x = element_text(size = 12),
-          axis.text.y = element_text(size = 12),
-          axis.title.x = element_text(size = 13, face = "bold"),
-          axis.title.y = element_text(size = 13, face = "bold"),
-          legend.text = element_text(size = 12),
-          legend.title = element_text(size = 13),
-          # legend.position = "bottom"
-    ) +
-    labs(x = "NMDS1",
-         y = "NMDS2",
-         title = "Composição da ictiofauna",
-         # subtitle = "Filtro MCE versus Sterivex") +
-         subtitle = "Stress: ",format(round(all_ps_vegan_ord_meta$stress))) +
-    scale_fill_manual(values = cores) +
-    scale_colour_manual(values = cores) 
-  # + scale_fill_manual(values = viridis::turbo(n = 5)) # cores das formas das samples/pontos
-  
-  
-  NMDS_MCE_Sterivex
-  
-  
-  # Salvar em pdf 
-  # ggsave(plot = NMDS_MCE_Sterivex, 
-  #        filename = paste("/home/gabriel/projetos/LI_paper/results/figures/",
-  #                         "NDMS_MCE_STX_filt", "-", Sys.Date(), ".pdf", sep = ""),
-  #        device = "pdf",
-  #        units = "cm",
-  #        height = 25,
-  #        width = 25,
-  #        dpi = 600)
-}
-
-## PCoA ----
-
-# Dados
-## Usando a tabela all_IDs_NMDS_df gerada para o NDMDS
-
-## Executando o PCoA para MCE versus Sterivex
+## Executando o PCoA para High versus Low
 {
   # Filtrando os dados
 
-mce_stx_IDs_NMDS_df <- all_IDs_NMDS_df %>% 
-  filter(Expedition %in% c("Novembro 2021")) %>% 
+MCE_all_IDs_PCoA_df <- all_IDs_PCoA_df %>% 
   select(where(~ any(. != 0))) 
 
-colnames(mce_stx_IDs_NMDS_df[,8:ncol(mce_stx_IDs_NMDS_df)])
+colnames(MCE_all_IDs_PCoA_df[,8:ncol(MCE_all_IDs_PCoA_df)])
 
 #Criando a Matriz de distancia
-pcOa_dist <- vegan::vegdist(x = mce_stx_IDs_NMDS_df[,8:ncol(mce_stx_IDs_NMDS_df)],
-                            method = "jaccard",
-                            binary = TRUE)
-
-pcOa <- cmdscale(pcOa_dist, eig = TRUE)
-
-# Porcentagens
-
-percent_pcOa <- pcOa$eig / sum(pcOa$eig) * 100
-percent_pcOa[1:2]
-
-ordiplot(pcOa, display = 'sites', type = 'text')
-
-# Espécies 
-
-# Fazer o fit das espécies para identificar a significância delas na explicação dos agrupamentos. 
-# Esse é o passo que mais demora quando com muitas amostras e espécies.
-meta.spp.fit <- envfit(pcOa, 
-                       mce_stx_IDs_NMDS_df[,8:ncol(mce_stx_IDs_NMDS_df)], 
-                       permutations = 999) # this fits species vectors
-
-# Obter valores de p para as espécies
-sps_pvals <- tibble("IDs" = names(meta.spp.fit$vectors$pvals),
-                    "p-value" = meta.spp.fit$vectors$pvals)
-
-spp.scrs <- as.data.frame(scores(meta.spp.fit, display = "vectors")) %>%
-  mutate("IDs" = rownames(.)) %>%
-  left_join(y = sps_pvals, by = "IDs")
-
-{
-  spp.scrs$IDs <- gsub("ID_", "", spp.scrs$IDs)
-  spp.scrs$IDs <- gsub("_", " ", spp.scrs$IDs)
-  } 
-
-# Selecionar espécies significativas
-sig.spp.scrs <- spp.scrs
-
-t_spp <- spp.scrs %>%
-  filter(`p-value` <=
-           0.05) # definir p-value aqui!
-
-# Pontos amostrais
-
-#Definir os valores de PCoA1 e PCoA2, e os metadados de cada amostra/ponto amostral
-site.scrs <- as.data.frame(scores(pcOa, display = "sites"))
-
-colnames(site.scrs) <- c("PCoA1", "PCoA2")
-
-site.scrs <- site.scrs %>% 
-  mutate("Sample number" = as.double(row.names(.))) %>%
-  left_join(y = mce_stx_IDs_NMDS_df[, c("Sample number",
-                                    "Sample",
-                                    "Level",
-                                    "Site",
-                                    "Filter",
-                                    "Expedition"
-  )],
-  by = "Sample number")
-
-# Determinar centroides
-scrs <- scores(pcOa, display = "sites")
-
-cent <- aggregate(scrs ~ Filter, data = site.scrs, FUN = "mean")
-
-# Calcular elipses
-PCoA <- data.frame("PCoA1" = pcOa$points[, 1],
-                   "PCoA2" = pcOa$points[, 2],
-                   "Filter" = as.factor(mce_stx_IDs_NMDS_df$Filter), check.names = FALSE)
-
-PCoA.mean <- aggregate(PCoA[, 1:2], list(group = PCoA$Filter), "mean")
-
-# Elipses
-
-# plot(all_ps_vegan_ord_meta)
-ordiplot(pcOa, display = 'sites', type = 'text')
-
-# Sobrepor as elipses
-ord <- ordiellipse(ord = pcOa, 
-                   groups = mce_stx_IDs_NMDS_df$Filter,
-                   display = "sites",
-                   kind = "ehull", conf = 0.95, label = T)
-
-
-# Funcao do vegan de calcular elipses
-veganCovEllipse <-function (cov, center = c(0, 0), scale = 1, npoints = 100) 
-{
-  theta <- (0:npoints) * 2 * pi/npoints
-  Circle <- cbind(cos(theta), sin(theta))
-  t(center + scale * t(Circle %*% chol(cov)))
-}
-
-df_ell <- data.frame()
-
-for(g in levels(PCoA$Filter)){
-  print(g)
-  df_ell <- 
-    rbind(df_ell, 
-          cbind(as.data.frame(with(PCoA[PCoA$Filter==g,],
-                                   veganCovEllipse(
-                                     ord[[g]]$cov,
-                                     ord[[g]]$center,
-                                     ord[[g]]$scale))),
-                Filter=g))}
-
-# Configurar plot PCoA
-
-# Definir paleta de cores
-
-cores <- c("#f1c232",
-           "#3381b1")
-# Plot
-
-  PCoA_MCE_Sterivex <-
-    ggplot(data = site.scrs,
-           aes(x=PCoA1, 
-               y=PCoA2)) +
-    
-    # Elipses 
-    ggforce::geom_mark_ellipse(inherit.aes = FALSE,
-                               data = df_ell,
-                               aes(x = Dim1,
-                                   y = Dim2,
-                                   group = Filter,
-                                   label = Filter,
-                                   col = Filter,
-                                   fill = Filter),
-                               alpha=0.10,
-                               # n = 200,
-                               linetype=2,
-                               expand = 0,
-                               label.fontsize = 14,
-                               con.cap = 0.1
-    ) +
-    # Niveis amostrais
-    geom_point(aes(x=PCoA1,
-                   y=PCoA2,
-                   fill = Filter,
-                   # label = `Sampling unit`,  #descomentar se quiser exibir os nomes dos `Sampling sites`s
-                   col=Filter,
-                   group = Filter,
-                   shape = Site),
-               stroke = 0.5,
-               alpha = 0.75,
-               size = 3) +
-    
-  # Nomes dos Sampling sites amostrais
-    ggrepel::geom_text_repel(aes(label = Site),  #descomentar bloco se quiser exibir os nomes dos pontos
-                             # hjust=0.5,
-                             # vjust=2.75,
-                             size=4.5,
-                             direction = "both",
-                             segment.size = 0.25,
-                             segment.alpha=0.1,
-                             # min.segment.length = 1.5,
-                             force = 3,
-                             max.overlaps = 100,
-                             fontface = "bold") +
-
-  # Vetores das IDs
-  # geom_segment(data = sig.spp.scrs, aes(x = 0,
-  #                                       xend = Dim1,
-  #                                       y = 0,
-  #                                       yend = Dim2),
-  #              arrow = arrow(length = unit(0.1, "cm")),
-  #              colour = "grey30",
-  #              alpha = 0.5,
-  #              lwd = 0.3) + #add vector arrows of significant species
-
-  # Nomes das IDs
-  # ggrepel::geom_text_repel(data = sig.spp.scrs,
-  #                          aes(x=Dim1, y=Dim2, label = IDs),
-  #                          size = 3.5,
-  #                          alpha = 0.75,
-  #                          direction = "both",
-  #                          segment.size = 0.25,
-  #                          segment.alpha = 0.1,
-  #                          max.overlaps = 25) +
-  
-  # Centroides
-  geom_point(data = cent,
-             aes(x = Dim1,
-                 y = Dim2, # colour = Filter,
-                 fill = Filter),
-             size = 8,
-             colour = "#222222",
-             alpha = 0.75,
-             shape  = 13) + 
-    coord_fixed(expand = c(0.5))+
-    theme_light() +
-    theme(
-      panel.background = element_blank(),
-      # panel.grid.major = element_blank(),
-      panel.grid.major = element_line(color = "grey",
-                                      linewidth = 0.2,
-                                      linetype = 1),
-      # axis.ticks = element_line(color = "grey"),
-      axis.ticks = element_blank(),
-      axis.text = element_text(color = "black"),
-      axis.title = element_text(color = "black", size = rel(1.2)),
-      # legend.background = element_blank(),
-      # legend.key = element_blank(),
-      legend.text = element_text(color = "black"),
-      legend.title = element_text(color = "black", size = rel(1.2)),
-      plot.title = element_text(color = "black", size = rel(1.5)),
-      plot.subtitle = element_text(color = "black", size = rel(1.2))) +
-    theme(plot.title = element_text(size = 14, face = "bold"),
-          axis.text.x = element_text(size = 12),
-          axis.text.y = element_text(size = 12),
-          axis.title.x = element_text(size = 13, face = "bold"),
-          axis.title.y = element_text(size = 13, face = "bold"),
-          legend.text = element_text(size = 12),
-          legend.title = element_text(size = 13),
-          # legend.position = "bottom"
-    ) +
-    labs(x = "PCoA1 (37.30%)",
-         y = "PCoA2 (32.43%)",
-         # title = "Composição da ictiofauna",
-         # subtitle = "Filtro MCE versus Sterivex") +
-         # subtitle = "Stress: ",format(round(all_ps_vegan_ord_meta$stress))
-    ) +
-    scale_fill_manual(values = cores) +
-    scale_colour_manual(values = cores) 
-  # + scale_fill_manual(values = viridis::turbo(n = 5)) # cores das formas das samples/pontos
-  
-  PCoA_MCE_Sterivex
-
-# Salvar em pdf 
-ggsave(plot = PCoA_MCE_Sterivex,
-       filename = paste("/home/gabriel/projetos/LI_paper/results/figures/",
-                        "PCoA_MCE_Sterivex_clean",
-                        # "PCoA_MCE_Sterivex_full",
-                        "-", Sys.Date(), ".pdf", sep = ""),
-       device = "pdf",
-       units = "cm",
-       height = 25,
-       width = 25,
-       dpi = 600)
-}
-
-## Executando o PCoA para Full versus Low
-{
-  # Filtrando os dados
-
-mce_IDs_NMDS_df <- all_IDs_NMDS_df %>% 
-  filter(Filter %in% c("MCE")) %>% 
-  select(where(~ any(. != 0))) 
-
-colnames(mce_IDs_NMDS_df[,8:ncol(mce_IDs_NMDS_df)])
-
-#Criando a Matriz de distancia
-pcOa_dist <- vegan::vegdist(x = mce_IDs_NMDS_df[,8:ncol(mce_IDs_NMDS_df)],
+pcOa_dist <- vegan::vegdist(x = MCE_all_IDs_PCoA_df[,8:ncol(MCE_all_IDs_PCoA_df)],
                             method = "jaccard",
                             binary = TRUE)
 
@@ -2350,7 +1302,7 @@ percent_pcOa[1:2]
 # Fazer o fit das espécies para identificar a significância delas na explicação dos agrupamentos. 
 # Esse é o passo que mais demora quando com muitas amostras e espécies.
 meta.spp.fit <- envfit(pcOa, 
-                       mce_IDs_NMDS_df[,8:ncol(mce_IDs_NMDS_df)], 
+                       MCE_all_IDs_PCoA_df[,8:ncol(MCE_all_IDs_PCoA_df)], 
                        permutations = 999) # this fits species vectors
 
 # Obter valores de p para as espécies
@@ -2382,12 +1334,10 @@ colnames(site.scrs) <- c("PCoA1", "PCoA2")
 
 site.scrs <- site.scrs %>% 
   mutate("Sample number" = as.double(row.names(.))) %>%
-  left_join(y = mce_IDs_NMDS_df[, c("Sample number",
-                                    "Sample",
+  left_join(y = MCE_all_IDs_PCoA_df[, c("Sample number",
+                                    "New_sample",
                                     "Level",
-                                    "Site",
-                                    # "Filter",
-                                    "Expedition"
+                                    "Site"
   )],
   by = "Sample number")
 
@@ -2399,8 +1349,8 @@ cent <- aggregate(scrs ~ Level, data = site.scrs, FUN = "mean")
 # Calcular elipses
 PCoA <- data.frame("PCoA1" = pcOa$points[, 1],
                    "PCoA2" = pcOa$points[, 2],
-                   # "Filter" = as.factor(mce_IDs_NMDS_df$Filter), check.names = FALSE)
-                   "Level" = as.factor(mce_IDs_NMDS_df$Level), check.names = FALSE)
+                   # "Filter" = as.factor(MCE_all_IDs_PCoA_df$Filter), check.names = FALSE)
+                   "Level" = as.factor(MCE_all_IDs_PCoA_df$Level), check.names = FALSE)
 
 PCoA.mean <- aggregate(PCoA[, 1:2], list(group = PCoA$Level), "mean")
 
@@ -2411,7 +1361,7 @@ ordiplot(pcOa, display = 'sites', type = 'text')
 
 # Sobrepor as elipses
 ord <- ordiellipse(ord = pcOa, 
-                   groups = mce_IDs_NMDS_df$Level,
+                   groups = MCE_all_IDs_PCoA_df$Level,
                    display = "sites",
                    kind = "ehull", conf = 0.95, label = T)
 
@@ -2442,15 +1392,15 @@ for(g in levels(PCoA$Level)){
 # Definir paleta de cores
 
 cores <- c("#3381b1",
-           "#f1c232")
+           #"#f1c232",
+           "#E63946")
 
 # Plot
 
-  PCoA_MCE <-
+  PCoA_MCE_2 <- 
     ggplot(data = site.scrs,
            aes(x=PCoA1, 
                y=PCoA2)) +
-    
     # Elipses 
     ggforce::geom_mark_ellipse(inherit.aes = FALSE,
                                data = df_ell,
@@ -2459,15 +1409,12 @@ cores <- c("#3381b1",
                                    group = Level,
                                    label = Level,
                                    col = Level,
-                                   fill = Level
-                               ),
+                                   fill = Level),
                                alpha=0.10,
-                               # n = 200,
                                linetype=2,
                                expand = 0,
-                               label.fontsize = 14,
-                               con.cap = 0.1
-    ) +
+                               label.fontsize = 20,
+                               con.cap = 0.1) +
     # Niveis amostrais
     geom_point(aes(x=PCoA1,
                    y=PCoA2,
@@ -2479,12 +1426,11 @@ cores <- c("#3381b1",
                stroke = 0.5,
                alpha = 0.75,
                size = 3) +
-    
     # Nomes dos Sampling sites amostrais
     ggrepel::geom_text_repel(aes(label = Site),  #descomentar bloco se quiser exibir os nomes dos pontos
                              # hjust=0.5,
                              # vjust=2.75,
-                             size=4.5,
+                             size=6,
                              direction = "both",
                              segment.size = 0.25,
                              segment.alpha=0.1,
@@ -2492,7 +1438,6 @@ cores <- c("#3381b1",
                              force = 3,
                              max.overlaps = 100,
                              fontface = "bold") +
-    
     # Vetores das IDs
     geom_segment(data = sig.spp.scrs, aes(x = 0,
                                           xend = Dim1,
@@ -2502,135 +1447,83 @@ cores <- c("#3381b1",
                  colour = "grey30",
                  alpha = 0.5,
                  lwd = 0.3) + #add vector arrows of significant species
-    
     # Nomes das IDs
-    ggrepel::geom_text_repel(data = sig.spp.scrs,
-                             aes(x=Dim1, y=Dim2, label = IDs),
-                             size = 3.5,
-                             alpha = 0.75,
-                             direction = "both",
-                             segment.size = 0.25,
-                             segment.alpha = 0.1,
-                             max.overlaps = 25) +
-    
+    geom_text_repel(data = sig.spp.scrs,
+                    aes(x=Dim1, y=Dim2, label = IDs),
+                    size = 3.5,
+                    alpha = 0.75,
+                    # direction = "both",
+                    segment.size = 0.25,
+                    segment.alpha = 0.1,
+                    max.overlaps = 25) +
     # Centroides
     geom_point(data = cent,
                aes(x = Dim1,
                    y = Dim2, # colour = Filter,
-                   fill = Level
-               ),
+                   fill = Level),
                size = 8,
                colour = "#222222",
                alpha = 0.75,
-               shape  = 13
-    ) + 
+               shape  = 13) + 
     coord_fixed(expand = c(0.5))+
-    theme_light() +
-    theme(
-      panel.background = element_blank(),
-      # panel.grid.major = element_blank(),
-      panel.grid.major = element_line(color = "grey",
-                                      size = 0.2,
-                                      linetype = 1),
-      # axis.ticks = element_line(color = "grey"),
-      axis.ticks = element_blank(),
-      axis.text = element_text(color = "black"),
-      axis.title = element_text(color = "black", size = rel(1.2)),
-      # legend.background = element_blank(),
-      # legend.key = element_blank(),
-      legend.text = element_text(color = "black"),
-      legend.title = element_text(color = "black", size = rel(1.2)),
-      plot.title = element_text(color = "black", size = rel(1.5)),
-      plot.subtitle = element_text(color = "black", size = rel(1.2))) +
-    theme(plot.title = element_text(size = 14, face = "bold"),
-          axis.text.x = element_text(size = 12),
-          axis.text.y = element_text(size = 12),
-          axis.title.x = element_text(size = 13, face = "bold"),
-          axis.title.y = element_text(size = 13, face = "bold"),
-          legend.text = element_text(size = 12),
-          legend.title = element_text(size = 13),
-          # legend.position = "bottom"
-    ) +
-    labs(x = "PCoA1 (29.67%)",
-         y = "PCoA2 (22.33%)",
-         # title = "Composição da ictiofauna",
-         # subtitle = "Filtro MCE versus Sterivex") +
-         # subtitle = "Stress: ",format(round(all_ps_vegan_ord_meta$stress))
-    ) +
+    theme(panel.grid.major = element_line(color = "grey",
+                                          size = 0.2,
+                                          linetype = 1),
+          axis.text = element_text(size = 17, color = "black"),
+          axis.title = element_text(size = 20, face = "bold"),legend.position = "none") +
+    labs(x = "PCoA1 (28.76%)",
+         y = "PCoA2 (23.87%)") +
     scale_fill_manual(values = cores) +
-    scale_colour_manual(values = cores) 
-  # + scale_fill_manual(values = viridis::turbo(n = 5)) # cores das formas das samples/pontos
+    scale_colour_manual(values = cores)
   
-  PCoA_MCE
-
-# Salvar em pdf 
-ggsave(plot = PCoA_MCE, 
-       filename = paste("/home/gabriel/projetos/LI_paper/results/figures/",
-                        "PCoA_MCE",
-                        # "PCoA_MCE_Sterivex_full",
-                        "-", Sys.Date(), ".pdf", sep = ""),
-       device = "pdf",
-       units = "cm",
-       height = 25,
-       width = 25,
-       dpi = 600)
+  PCoA_MCE_2
+  
+  # Salvar em pdf
+  ggsave(plot = PCoA_MCE_2,
+         filename = paste("/home/gabriel/projetos/LI_paper/results/figures/",
+                          "PCoA_MCE_all",
+                          "-", Sys.Date(), ".pdf", sep = ""),
+         units = "cm",
+         height = 16.75,
+         width = 16.75,
+         dpi = 600)
+}
 }
 
-## Species accumulation curves ----
+## Permanova
+{
+  ## Primeiro e necessario gerar uma matriz de distancias para plotar as amostras
+  ## e em seguida testar a assumpcao de que os dados dispersos formam grupos bem definidos.
   
-## Definindo os dados 
-wider_grouped_sampled_filt_ASVs <- grouped_sampled_filt_tbl %>%
-  select(c(Sample,
-           Site,
-           Level,
-           `Curated ID`,
-           ASVs,
-           Expedition,
-           Filter,
-           Level)) %>%
-  group_by(Sample, `Curated ID`, Reads) %>%
-  unique %>%
-  pivot_wider(names_from = `Curated ID`,
-              values_from = ASVs,
-              names_sort = TRUE) %>%
-  as.data.frame() %>%
-  mutate(across(everything(), ~replace_na(.x, 0))) %>%
-  column_to_rownames("Sample")
+  # Distance matrix
+  
+  pcOa_mtx <-  as.data.frame(as.matrix(pcOa_dist)) # gerado anteriormente para realizar o plot PCoA
+  
+  #Assumptions
+  
+  Dispersion <- betadisper(pcOa_dist, group = 
+                             # mce_stx_IDs_NMDS_df$Filter, 
+                             MCE_all_IDs_PCoA_df$Level, 
+                           type = "centroid") # testando a dispercao
+  
+  plot(Dispersion)
+  
+  anova(Dispersion)
+  
+  #Test
+  
+  perma_test <- adonis2(pcOa_mtx ~ as.factor(MCE_all_IDs_PCoA_df$Level), data = pcOa_mtx,
+                   permutations=9999)
+  perma_test
+}  
 
-accum_ASVs <- specaccum(wider_grouped_sampled_filt_ASVs[5:ncol(wider_grouped_sampled_filt_ASVs)],
-                             method = "rarefaction"
-                             # method = "random" # same choice as Di Muri et al. 2020
-                             # method = "exact"
-                             )
-plot(accum_ASVs$individuals, accum_ASVs$richness)
-
-## Getting into a dataframe
-accum_ASVs_df <- tibble("Sites" = c(0, accum_ASVs$sites),
-                        "Individuals" = c(0, accum_ASVs$individuals),
-                        "Richness" = c(0, accum_ASVs$richness),
-                        "sd" = c(0, accum_ASVs$sd))
-## PLotting
-accum_ASVs_df %>% 
-ggplot(aes(x = Individuals,
-           y = Richness)) +
-    geom_line(linewidth = 2.5,
-              alpha = 0.50) +
-    geom_point(size = 1) +
-    # geom_errorbar(aes(ymin = Richness - sd, ymax = Richness + sd), width = 0.01) +
-    geom_ribbon(aes(ymin = Richness - sd, ymax = Richness + sd), 
-                alpha = 0.15,
-                size = 0.1) +
-    theme_minimal() +
-    theme(panel.grid.major = element_line(color = "grey", size = 0.4),
-          panel.grid.minor = element_line(color = "lightgrey", size = 0.1)) +
-    labs(x = "Species richness", 
-         y = "Number of ASVs",
-         title = "Collector's curve MCE and Sterivex samples")
+## Species accumulation curves ----
 
 # All samples (Richness vs Samples)
 {
   ## Definindo os dados 
   wider_grouped_sampled_filt <- grouped_sampled_filt_tbl %>%
+    filter(Filter %in% "MCE") %>% 
     select(c(Sample,
              Site,
              Level,
@@ -2648,6 +1541,12 @@ ggplot(aes(x = Individuals,
     mutate(across(everything(), ~replace_na(.x, 0))) %>%
     column_to_rownames("Sample")
   
+  grouped_sampled_filt_tbl %>% 
+    group_by(Sample, Site, Year, Level, Expedition) %>% 
+    select(Sample, Site, Year, Level, Expedition) %>% 
+    unique() %>% 
+    View() 
+  
     ## Function to transform values into 1 and zeros
   jaccarize <- function(x) {
     # Using ifelse to check each element of the vector x
@@ -2657,29 +1556,8 @@ ggplot(aes(x = Individuals,
   wider_grouped_sampled_filt <- wider_grouped_sampled_filt %>%
     mutate(across(c(5:ncol(wider_grouped_sampled_filt)), jaccarize))
   
-  ## Combined MCE and STX
-  wider_grouped_sampled_filt_stx_mce <- wider_grouped_sampled_filt %>%
-    filter(Expedition %in% "Novembro 2021")
-
-  accum_stx_mce <- specaccum(wider_grouped_sampled_filt_stx_mce[5:ncol(wider_grouped_sampled_filt_stx_mce)],
-                             # method = "rarefaction"
-                             method = "random" # same choice as Di Muri et al. 2020
-                             # method = "exact"
-                             )
-  plot(accum_stx_mce$sites, accum_stx_mce$richness)
-
-  ## Getting into a dataframe
-  accum_mce_stx_df <- tibble("Sites" = c(0, accum_stx_mce$sites),
-                             "Individuals" = c(0, accum_stx_mce$individuals),
-                             "Richness" = c(0, accum_stx_mce$richness),
-                             "sd" = c(0, accum_stx_mce$sd),
-                             "Filter" = "MCE and Sterivex (November 2021)")
-  
-  ## MCE only
-  wider_grouped_sampled_filt_mce <- wider_grouped_sampled_filt %>%
-    filter(Filter %in% "MCE")
-
-  accum_mce <- specaccum(wider_grouped_sampled_filt_mce[5:ncol(wider_grouped_sampled_filt_mce)],
+  ## All MCE samples
+  accum_mce <- specaccum(wider_grouped_sampled_filt[5:ncol(wider_grouped_sampled_filt)],
                              # method = "rarefaction"
                              method = "random" # same choice as Di Muri et al. 2020
                              # method = "exact"
@@ -2691,262 +1569,115 @@ ggplot(aes(x = Individuals,
                          "Individuals" = c(0, accum_mce$individuals),
                          "Richness" = c(0, accum_mce$richness),
                          "sd" = c(0, accum_mce$sd),
-                         "Filter" = "MCE")
-  
-  ## MCE (November 2021) only
-  wider_grouped_sampled_filt_mce21 <- wider_grouped_sampled_filt %>%
-    filter(Filter %in% "MCE") %>% 
-    filter(Expedition %in% "Novembro 2021")  
+                         "Level" = "All")
 
-  accum_mce21 <- specaccum(wider_grouped_sampled_filt_mce21[5:ncol(wider_grouped_sampled_filt_mce21)],
-                             # method = "rarefaction"
-                             method = "random" # same choice as Di Muri et al. 2020
-                             # method = "exact"
-                             )
-  plot(accum_mce21$sites, accum_mce21$richness)
+  ## Low-level samples only
+  wider_grouped_sampled_filt_low <- wider_grouped_sampled_filt %>%
+    filter(Level %in% "Low")
+
+  accum_low <- specaccum(wider_grouped_sampled_filt_low[5:ncol(wider_grouped_sampled_filt_low)],
+                         # method = "rarefaction"
+                         method = "random" # same choice as Di Muri et al. 2020
+                         # method = "exact"
+                         )
   
   ## Getting into a dataframe
-  accum_mce21_df <- tibble("Sites" = c(0, accum_mce21$sites),
-                         "Individuals" = c(0, accum_mce21$individuals),
-                         "Richness" = c(0, accum_mce21$richness),
-                         "sd" = c(0, accum_mce21$sd),
-                         "Filter" = "MCE (November 2021)")
+  accum_low_df <- tibble("Sites" = c(0, accum_low$sites),
+                         "Individuals" = c(0, accum_low$individuals),
+                         "Richness" = c(0, accum_low$richness),
+                         "sd" = c(0, accum_low$sd),
+                         "Level" = "Low")
+  ## High-level samples only
+  wider_grouped_sampled_filt_high <- wider_grouped_sampled_filt %>%
+    filter(Level %in% "High")
+
+  accum_full <- specaccum(wider_grouped_sampled_filt_high[5:ncol(wider_grouped_sampled_filt_high)],
+                         # method = "rarefaction"
+                         method = "random" # same choice as Di Muri et al. 2020
+                         # method = "exact"
+                         )
   
-  ## Sterivex only
-  wider_grouped_sampled_filt_stx <- wider_grouped_sampled_filt %>%
-    filter(Filter %in% "Sterivex")
-
-  accum_stx <- specaccum(wider_grouped_sampled_filt_stx[5:ncol(wider_grouped_sampled_filt_stx)],
-                             # method = "rarefaction"
-                             method = "random" # same choice as Di Muri et al. 2020
-                             # method = "exact"
-                             )
-  plot(accum_stx$sites, accum_stx$richness)
-
   ## Getting into a dataframe
-  accum_stx_df <- tibble("Sites" = c(0, accum_stx$sites),
-                         "Individuals" = c(0, accum_stx$individuals),
-                         "Richness" = c(0, accum_stx$richness),
-                         "sd" = c(0, accum_stx$sd),
-                         "Filter" = "Sterivex")
-  
-  ## MCE and Sterivex 
-  accum_all <- specaccum(wider_grouped_sampled_filt[5:ncol(wider_grouped_sampled_filt)],
-                             # method = "rarefaction"
-                             method = "random" # same choice as Di Muri et al. 2020
-                             # method = "exact"
-                             )
-  plot(accum_all$sites, accum_all$richness)
-
-  ## Getting into a dataframe
-  accum_all_df <- tibble("Sites" = c(0, accum_all$sites),
-                         "Individuals" = c(0, accum_all$individuals),
-                         "Richness" = c(0, accum_all$richness),
-                         "sd" = c(0, accum_all$sd),
-                         "Filter" = "All samples")
+  accum_full_df <- tibble("Sites" = c(0, accum_full$sites),
+                          "Individuals" = c(0, accum_full$individuals),
+                          "Richness" = c(0, accum_full$richness),
+                          "sd" = c(0, accum_full$sd),
+                          "Level" = "High")
   
   ## Combining dataframes
-  combined_accum <- bind_rows(#accum_mce_stx_df, 
-                              # accum_mce_df,
-                              accum_mce21_df, 
-                              accum_stx_df
-                              # accum_all_df, 
+  combined_accum <- bind_rows(accum_mce_df,
+                              accum_low_df,
+                              accum_full_df
                               )
   
-  combined_accum$Filter <- factor(combined_accum$Filter,
-                                  levels = c("All samples",
-                                             "MCE",
-                                             "MCE and Sterivex (November 2021)",
-                                             "MCE (November 2021)",
-                                             "Sterivex"))
+  combined_accum$Level <- factor(combined_accum$Level,
+                                  levels = c("All",
+                                             "Low",
+                                             "High"
+                                             ))
+  # Definir paleta de cores
+  
+  cores <- c("#3381b1",
+             "#f1c232")
   
   ## Plotting
-  collector_plot_all <- 
+  collector_plot_all <-
     combined_accum %>% 
     ggplot(aes(x = Sites,
                y = Richness,
-               color = Filter,
-               fill = Filter)) +
-    geom_line(linewidth = 2.5,
-              alpha = 0.50) +
+               color = Level,
+               fill = Level )) +
+    geom_line(linewidth = 2, alpha = 0.50) +
     geom_point(size = 1) +
-    # geom_errorbar(aes(ymin = Richness - sd, ymax = Richness + sd), width = 0.01) +
-    geom_ribbon(aes(ymin = Richness - sd, ymax = Richness + sd), 
-                alpha = 0.15,
-                size = 0.1) +
-    scale_color_manual(values = c(# "#9C27B0",
-                                  # "#4CAF50", 
-                                  "#F57F17", 
-                                  "#2196F3"
-                                  # "#F44336" 
-                                  )) +  
-    scale_fill_manual(values = c(# "#673AB7",
-                                 # "#005602",
-                                 "#F57F55",
-                                 "#0D47A1"
-                                 # "#800020"
-                                 )) +
-    theme_minimal() +
-    theme(panel.grid.major = element_line(color = "grey", size = 0.4),
-          panel.grid.minor = element_line(color = "lightgrey", size = 0.1)) +
-    labs(x = "Number of samples", 
-         y = "Species richness",
-         # title = "Collector's curve MCE and Sterivex samples"
-         )
+    # geom_ribbon(aes(ymin = Richness - sd, ymax = Richness + sd),
+    #             alpha = 0.15, size = 0.1) +
+    # geom_linerange(aes(ymin = Richness - sd, ymax = Richness + sd),
+               # size = 0.3, alpha = 0.6) +
+    # geom_line(aes(y = Richness + sd, color = Level), linetype = "dashed", alpha = 0.5) +
+    # geom_line(aes(y = Richness - sd, color = Level), linetype = "dashed", alpha = 0.5) +
+    # geom_pointrange(aes(ymin = Richness - sd, ymax = Richness + sd, color = Level), 
+    #             alpha = 1) +
+    geom_errorbar(aes(ymin = Richness - sd, ymax = Richness + sd, colour=Level), width=.2
+                  # ,position= position_dodge(0.1)
+                  ) +
+    # scale_color_manual(values = c("#2A6B33",  "#3381b1", "#F5AF0F"),
+    scale_color_manual(values = c("#2A6B33", "#E63946", "#457B9D"),
+                       labels = c("All" = "All samples", 
+                                  "Low" = "Low-level", 
+                                  "High" = "High-level")) +
+    scale_fill_manual(values = c("#3A9647", "#fd2c3b", "#3381b1")) +
+    # scale_fill_manual(values = c("#1b9e77", "#d95f02", "#7570b3")) +
+    scale_x_continuous(breaks = seq(0, max(combined_accum$Sites), by = 3)) +
+    scale_y_continuous(breaks = seq(0, max(combined_accum$Richness), by = 3)) +
+    geom_label_repel(data = combined_accum %>%
+                       arrange(desc(Sites)) %>%
+                       distinct(Level, .keep_all = TRUE),
+                     aes(label = recode(Level,
+                                        "All" = "All samples",
+                                        "Low" = "Low-level",
+                                        "High" = "High-level"),
+                         color = Level),
+                     size = 7,
+                     fontface = "bold",
+                     nudge_y = 3,
+                     fill = "white",
+                     box.padding = 1,
+                     point.padding = 0.5,
+                     segment.color = "grey50",
+                     show.legend = FALSE) +
+    theme(panel.grid.major = element_line(color = "grey", linewidth = 0.2, linetype = 1),
+          axis.text = element_text(color = "black", size = 17),
+          axis.title = element_text(color = "black", size = 20, face = "bold"),
+          strip.background = element_rect(fill = "#e4e4e4"),
+          legend.position = "none") +
+    labs(x = "Number of samples",
+         y = "Richness")
   
   collector_plot_all
   
-  ggsave(file = paste0(figs_path,"/", "collector_plot_STX_MCE21-", Sys.Date(), ".pdf", collapse = ""),
+  ggsave(file = paste0(figs_path,"/", "collector_plot_all-", Sys.Date(), ".pdf", collapse = ""),
          plot = collector_plot_all,
-         device = "pdf",
-         width = 16,
-         height = 12,
-         units = "cm",
-         dpi = 300)
-    }
-
-# All samples (Richness vs ASVs)
-{
-  ## Definindo os dados 
-  wider_grouped_sampled_filt_ASVs
-  
-  ## Combined MCE and STX
-  wider_grouped_sampled_filt_ASVs_mce_stx <- wider_grouped_sampled_filt_ASVs %>%
-    filter(Expedition %in% "Novembro 2021")
-
-  accum_stx_mce <- specaccum(wider_grouped_sampled_filt_ASVs_mce_stx[5:ncol(wider_grouped_sampled_filt_ASVs_mce_stx)],
-                             method = "rarefaction"
-                             # method = "random" # same choice as Di Muri et al. 2020
-                             # method = "exact"
-                             )
-  plot(accum_stx_mce$individuals, accum_stx_mce$richness)
-
-  ## Getting into a dataframe
-  accum_mce_stx_df <- tibble("Sites" = c(0, accum_stx_mce$sites),
-                             "Individuals" = c(0, accum_stx_mce$individuals),
-                             "Richness" = c(0, accum_stx_mce$richness),
-                             "sd" = c(0, accum_stx_mce$sd),
-                             "Filter" = "MCE and Sterivex (November 2021)")
-  
-  ## MCE only
-  wider_grouped_sampled_filt_ASVs_mce <- wider_grouped_sampled_filt_ASVs %>%
-    filter(Filter %in% "MCE")
-
-  accum_mce <- specaccum(wider_grouped_sampled_filt_ASVs_mce[5:ncol(wider_grouped_sampled_filt_ASVs_mce)],
-                             method = "rarefaction"
-                             # method = "random" # same choice as Di Muri et al. 2020
-                             # method = "exact"
-                             )
-  plot(accum_mce$sites, accum_mce$richness)
-  
-  ## Getting into a dataframe
-  accum_mce_df <- tibble("Sites" = c(0, accum_mce$sites),
-                         "Individuals" = c(0, accum_mce$individuals),
-                         "Richness" = c(0, accum_mce$richness),
-                         "sd" = c(0, accum_mce$sd),
-                         "Filter" = "MCE")
-  
-  ## MCE (November 2021) only
-  wider_grouped_sampled_filt_ASVs_mce21 <- wider_grouped_sampled_filt_ASVs %>%
-    filter(Filter %in% "MCE") %>% 
-    filter(Expedition %in% "Novembro 2021")  
-
-  accum_mce21 <- specaccum(wider_grouped_sampled_filt_ASVs_mce21[5:ncol(wider_grouped_sampled_filt_ASVs_mce21)],
-                             method = "rarefaction"
-                             # method = "random" # same choice as Di Muri et al. 2020
-                             # method = "exact"
-                             )
-  plot(accum_mce21$individuals, accum_mce21$richness)
-  
-  ## Getting into a dataframe
-  accum_mce21_df <- tibble("Sites" = c(0, accum_mce21$sites),
-                         "Individuals" = c(0, accum_mce21$individuals),
-                         "Richness" = c(0, accum_mce21$richness),
-                         "sd" = c(0, accum_mce21$sd),
-                         "Filter" = "MCE (November 2021)")
-  
-  ## Sterivex only
-  wider_grouped_sampled_filt_ASVs_stx <- wider_grouped_sampled_filt_ASVs %>%
-    filter(Filter %in% "Sterivex")
-
-  accum_stx <- specaccum(wider_grouped_sampled_filt_stx[5:ncol(wider_grouped_sampled_filt_stx)],
-                             method = "rarefaction"
-                             # method = "random" # same choice as Di Muri et al. 2020
-                             # method = "exact"
-                             )
-  plot(accum_stx$individuals, accum_stx$richness)
-
-  ## Getting into a dataframe
-  accum_stx_df <- tibble("Sites" = c(0, accum_stx$sites),
-                         "Individuals" = c(0, accum_stx$individuals),
-                         "Richness" = c(0, accum_stx$richness),
-                         "sd" = c(0, accum_stx$sd),
-                         "Filter" = "Sterivex")
-  
-  ## MCE and Sterivex 
-  accum_all <- specaccum(wider_grouped_sampled_filt_ASVs[5:ncol(wider_grouped_sampled_filt_ASVs)],
-                             method = "rarefaction"
-                             # method = "random" # same choice as Di Muri et al. 2020
-                             # method = "exact"
-                             )
-  plot(accum_all$individuals, accum_all$richness)
-
-  ## Getting into a dataframe
-  accum_all_df <- tibble("Sites" = c(0, accum_all$sites),
-                         "Individuals" = c(0, accum_all$individuals),
-                         "Richness" = c(0, accum_all$richness),
-                         "sd" = c(0, accum_all$sd),
-                         "Filter" = "All samples")
-  
-  ## Combining dataframes
-  combined_accum <- bind_rows(accum_mce_stx_df, accum_mce_df, accum_mce21_df, accum_stx_df, accum_all_df, )
-  
-  combined_accum$Filter <- factor(combined_accum$Filter,
-                                  levels = c("All samples",
-                                             "MCE",
-                                             "MCE and Sterivex (November 2021)",
-                                             "MCE (November 2021)",
-                                             "Sterivex"))
-  
-  ## Plotting
-  collector_plot_all_ASVs <- 
-    combined_accum %>% 
-    ggplot(aes(x = Individuals,
-               y = Richness,
-               color = Filter,
-               fill = Filter)) +
-    geom_line(linewidth = 2.5,
-              alpha = 0.50) +
-    geom_point(size = 1) +
-    # geom_errorbar(aes(ymin = Richness - sd, ymax = Richness + sd), width = 0.01) +
-    geom_ribbon(aes(ymin = Richness - sd, ymax = Richness + sd), 
-                alpha = 0.15,
-                size = 0.1) +
-    scale_color_manual(values = c("#9C27B0",
-                                  "#4CAF50", 
-                                  "#F57F17", 
-                                  "#2196F3",
-                                  "#F44336" 
-                                  )) +  
-    scale_fill_manual(values = c("#673AB7",
-                                 "#005602",
-                                 "#F57F17",
-                                 "#0D47A1",
-                                 "#800020"
-                                 )) +
-    theme_minimal() +
-    theme(panel.grid.major = element_line(color = "grey", size = 0.4),
-          panel.grid.minor = element_line(color = "lightgrey", size = 0.1)) +
-    labs(x = "Number of ASVs",
-         y = "Species richness",
-         title = "Collector's curve MCE and Sterivex samples (ASVs)") 
-  
-  collector_plot_all_ASVs
-  
-  ggsave(file = paste0(figs_path,"/", "collector_plot_STX-", Sys.Date(), ".pdf", collapse = ""),
-         plot = collector_plot_STX,
-         device = "pdf",
-         width = 16,
+         width = 20,
          height = 12,
          units = "cm",
          dpi = 300)
@@ -2956,9 +1687,9 @@ ggplot(aes(x = Individuals,
 
 grouped_sampled_filt_tbl %>% colnames()
 
-# Creating "OTU" table ----
-
-gsf_phyloseq <- grouped_sampled_filt_tbl %>%
+# Creating "OTU" table 
+{
+  gsf_phyloseq <- grouped_sampled_filt_tbl %>%
   pivot_wider(id_cols = c("Curated ID"),
               values_from = RRA,
               values_fn = sum_uniq,
@@ -2977,9 +1708,9 @@ gsf_phyloseq <- grouped_sampled_filt_tbl %>%
 dim(gsf_phyloseq)
 
 gsf_phyloseq %>% rowSums() ==0
-
-# Creating taxonomy table ----
-
+}
+# Creating taxonomy table
+{
 grouped_sampled_filt_tbl %>% colnames()
 
 blast_tax_table <- grouped_sampled_filt_tbl %>%
@@ -2993,18 +1724,18 @@ blast_tax_table <- grouped_sampled_filt_tbl %>%
   `rownames<-`(.$`Curated ID`) %>% 
   select(-c("Curated ID")) %>% 
   as.matrix()
-
-# Creating sample metadata table ----
-
+}
+# Creating sample metadata table
+{
 metadata_tbl <- grouped_sampled_filt_tbl %>%
   select(c("Sample", "Site", "Year", "Expedition", "Level", "Filter")) %>% 
   unique() %>%
   as.data.frame() %>% 
-  `rownames<-`(.$`Sample`)
-
-# Creating final phyloseq object ----
-
-final_ps <- phyloseq::phyloseq(otu_table(gsf_phyloseq, taxa_are_rows = T),
+  `rownames<-`(.$`Sample`)  
+}
+# Creating final phyloseq object
+{
+ final_ps <- phyloseq::phyloseq(otu_table(gsf_phyloseq, taxa_are_rows = T),
                                sample_names(metadata_tbl),
                                tax_table(blast_tax_table))
 
@@ -3111,6 +1842,97 @@ div_est_phylo <- estimate_richness(final_ps,
  
  ggarrange(div_stx_mce_plot, div_all_plot,
                     labels = c("A", "B"),
-                    ncol = 2, nrow = 1)
+                    ncol = 2, nrow = 1) 
+}
+
+## Diversity indices ----
+
+# Creating "OTU" table
+
+discret_tbl_ID <- grouped_filt_tbl %>%
+  select(c(Site,
+           `Period abundance`,
+           `Curated ID`)) %>%
+  mutate(Site_Level = paste(Site, Level, sep = "_")) %>% 
+  pivot_wider(id_cols = c("Curated ID"),
+              values_from = "Period abundance",
+              values_fn = sum_uniq,
+              names_from = Site_Level,
+              names_sort = TRUE) %>%
+  mutate(across(starts_with("SP") ,~ replace_na(.,replace = 0))) %>%
+  mutate_if(is.numeric, jaccarize) %>%
+  as.data.frame() %>%
+  column_to_rownames(var = "Curated ID") %>%
+    filter(rowSums(.)!= 0) %>%   #Remover linhas cuja soma é zero
+    select(which(!colSums(., na.rm = TRUE) %in% 0))
+
+metadata_tbl_ID <- grouped_filt_tbl %>%
+  select(c(Level,
+           Site)) %>%
+  unique() %>%
+  mutate(Site_Level = paste(Site, Level, sep = "_")) %>% 
+  as.data.frame() %>%
+  `rownames<-`(.$`Site_Level`)
  
+# Creating taxonomy table
+
+blast_tax_tbl_ID <- grouped_filt_tbl %>% 
+  select(c("Curated ID",
+           "Genus",
+           "Family",
+           "Order",
+           "Class")) %>% 
+  unique() %>% 
+  as.data.frame() %>% 
+  `rownames<-`(.$`Curated ID`) %>% 
+  select(-c("Curated ID")) %>% 
+  as.matrix()
+
+# Creating Phyloseq object
+
+PS_ID <- phyloseq(otu_table(discret_tbl_ID, taxa_are_rows = T),
+                  sample_data(metadata_tbl_ID),
+                  tax_table(blast_tax_tbl_ID))
+
+div_est_ps_ID <- estimate_richness(PS_ID,
+                                   split = TRUE,
+                                   c("Observed", "Chao1","Obs./Chao1",
+                                     "se.chao1","ACE", "se.ACE",
+                                     "Shannon","Simpson", "InvSimpson")) %>% 
+  as_tibble(rownames = "Site_Level") %>% 
+  mutate("Obs./Chao1" = Observed/Chao1) %>%
+  pivot_longer(cols = c("Observed", "Chao1","Obs./Chao1", "se.chao1",
+                        "ACE", "se.ACE", "Shannon", "Simpson", "InvSimpson"),
+               names_to = "Indice",
+               values_to = "Values") %>%
+  mutate(Indice = factor(Indice, levels = c("Observed", "Chao1","Obs./Chao1", "se.chao1",
+                                            "ACE", "se.ACE", "Shannon", "Simpson", "InvSimpson"))) %>%
+  left_join(y = metadata_tbl_ID,
+            by = "Site_Level")
+
+# Plotting diversity indices
+
+div_est_ps_ID %>% 
+  filter(Indice %in% c("Observed",
+                       "Chao1",
+                       "Shannon")) %>% 
+  ggplot(aes(y = Values,
+             x = Site,
+             group = Level,
+             fill = Level, alpha = 0.1)) +
+  geom_col(col = "#282828",
+           # alpha = 0.4,
+           linewidth = 0.05,
+           position = "dodge") +
+  # position_dodge() +
+  # facet_wrap(nrow = 3,
+  #            ~Indice,
+  #            scales = "free") +
+  # facet_grid(rows = vars(Indice),
+  facet_grid(cols = vars(Indice),
+             # rows = vars(Level),
+             space = "free",
+             scales = "free",
+             drop = TRUE)
+
 ```
