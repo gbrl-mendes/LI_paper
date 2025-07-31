@@ -231,6 +231,7 @@ pre_filt_tbl <-
   #           "Barragem", "Ponte", "Fundação", "Prainha", "Barragem", "Ponte", "Fundação", "Prainha", 
   #           "Barragem", "Ponte", "Fundação")  
 
+  
   # Site
   Site <- c("P1", "P2", "P2", "P3", "P4", "P2", "P1", "P3", "P4", "P2", "P1",
   "P3", "P4", "P2", "P1", "P3", "P4", "P2", "P1")
