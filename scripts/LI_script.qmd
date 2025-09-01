@@ -1,0 +1,232 @@
+---
+title: "LI paper scripts"
+format: html
+editor: visual
+author: 
+  - "Mendes, GA"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+---
+
+This pipeline integrates public tools available for metabarcoding analyses. To share or reproduce this content, please require authors' consent.**\
+**Contact: [gabrielmendesbrt\@gmail.com](mailto:gabrielmendesbrt@gmail.com){.email}
+
+# Bioinformatics
+
+## Housekeeping
+
+-   Load project environment and necessary libraries
+
+```{r}
+# load(file = "/home/gabriel/projetos/LI_paper/Environments/...RData")
+
+# Loading libraries ----
+
+{ library("tidyverse")
+  library("Biostrings")
+  library("DECIPHER")
+  library("phyloseq")
+  library("vegan")
+  library("readxl")
+  library("ggpubr")
+  library("ggplot2")
+  library("ggsignif")
+  library("ggrepel")
+  library("openxlsx")
+  }
+```
+
+-   Create project folders
+
+```{r}
+# Creating and loading paths ----
+{
+  prjct_path <- "/home/gabriel/projetos/LI_paper"
+  prjct_radical <- "eDNA_Lagoa-dos-Ingleses"
+  scripts_path <- paste0(prjct_path,"/scripts")
+  results_path <- paste0(prjct_path,"/results")
+  figs_path <- paste0(results_path,"/figures")
+  tbl_path <- paste0(results_path,"/tables")
+  env_path <- paste0(prjct_path,"/environment")
+  paths <- c(scripts_path, results_path, figs_path, tbl_path, env_path)
+}
+
+for (dir in paths) {
+  if (dir.exists(dir)) {
+    print(paste("The directory", dir, "already exists!"))
+  } else {
+    print(paste("Making", dir, "!" ))
+    dir.create(dir) 
+  }
+}
+```
+
+-   Data acquring
+
+```{r}
+pre_raw_results_tbl <- read_excel("/home/gabriel/projetos/lagoa_ingleses/tabelas/curated/curated-Complete_analysis_results-2024-01-10.xlsx") %>% tibble()
+curated_ids_tbl <- read_excel("/home/gabriel/projetos/lagoa_ingleses/tabelas/curated/curated_lagoa_ingleses-ASVs_x_amostras-2024-01-09.xlsx") %>% tibble()
+blast_tax <- read.csv("/home/gabriel/projetos/lagoa_ingleses/tabelas/raw/tax_blast.csv", sep = ",", check.names = FALSE)
+```
+
+## Integrating raw and curated data
+
+### Obtaining data
+
+Selecting colunms and adjusting the raw data table
+
+```{r}
+pre_raw_results_tbl <-
+  pre_raw_results_tbl %>%
+  select(
+    "Sample", "Unique_File_name", "OTU", "Abundance", "Obs. Curadoria", 
+    "Possible contamination", "Read origin", "Primer expected length", 
+    "ASV Size (pb)", "ASV header"
+  ) %>%
+  mutate(Sample = str_replace(Sample, "__", "_"))
+```
+
+Selecting colunms from curated identifications table
+
+```{r}
+curated_ids_tbl <- # Curated identifications df
+  curated_ids_tbl %>%
+  select(
+    "ASV header", "ASV (Sequence)", "Curated ID", "Final ID (BLASTn)", 
+    "BLASTn pseudo-score", "Class (BLASTn)", "Curated Order (BLASTn)"
+  ) %>%
+  unique()
+```
+
+### Data integration and Taxonomic Enrichment
+
+-   Joining the results table with curated identifications
+
+```{r}
+raw_results_tbl <- pre_raw_results_tbl %>%
+  left_join(curated_ids_tbl, by = "ASV header") %>%
+  select(
+    "ASV header", "ASV (Sequence)", "Curated ID", "Final ID (BLASTn)",
+    "BLASTn pseudo-score", "Class (BLASTn)", "Curated Order (BLASTn)",
+    "Sample", "Unique_File_name", "OTU", "Abundance", "Obs. Curadoria",
+    "Read origin", "Primer expected length", "ASV Size (pb)"
+  )
+```
+
+-   Adding complete taxonomy from BLASTr output
+
+```{r}
+# Prepare the BLAST taxonomy table
+blast_tax_less <- blast_tax[2:85] %>% 
+  rename(`ASV (Sequence)` = "ASV") %>%
+  left_join(raw_results_tbl, by = "ASV (Sequence)") %>% 
+  mutate("Genus (BLASTn)" = str_split_fixed(string = .$`Curated ID`, pattern = " ", n = 2)[,1]) %>% 
+  select("ASV (Sequence)", "Family (BLASTn)", "Genus (BLASTn)")
+
+# Join the taxonomy to the main table
+raw_results_tbl <- raw_results_tbl %>%
+  left_join(blast_tax_less, by = "ASV (Sequence)") %>% 
+  select(
+    "ASV header", "ASV (Sequence)", "Curated ID", "Final ID (BLASTn)", 
+    "BLASTn pseudo-score", "Class (BLASTn)", "Family (BLASTn)", 
+    "Genus (BLASTn)", "Curated Order (BLASTn)", "Sample", 
+    "Unique_File_name", "OTU", "Abundance", "Obs. Curadoria", 
+    "Read origin", "Primer expected length", "ASV Size (pb)"
+  ) %>% 
+  unique() %>% 
+  rename("Order (BLASTn)" = "Curated Order (BLASTn)")
+```
+
+### Manual corrections and filtering
+
+This section covers manual corrections based on expert knowledge and the application of filters to remove low-quality or irrelevant data.
+
+-   Correcting taxonomic identifications after curation
+
+```{r}
+# Update families for specific genera (february 10th 2025 correction)
+raw_results_tbl <- raw_results_tbl %>% 
+  mutate(`Family (BLASTn)` = 
+           ifelse(`Genus (BLASTn)` %in% c("Psalidodon", "Moenkhausia", "Astyanax", "Hemigrammus", "Oligosarcus"), 
+                  "Acestrorhamphidae", `Family (BLASTn)`)) %>% 
+  mutate(`Family (BLASTn)` = ifelse(`Genus (BLASTn)` %in% "Piabina",
+                                    "Stevardiidae", `Family (BLASTn)`))
+
+# Group Hoplias species (february 25th 2025 correction)
+raw_results_tbl <- raw_results_tbl %>%
+  mutate(`Curated ID` =
+           ifelse(`Curated ID` %in% c("Hoplias malabaricus", "Hoplias intermedius"),
+                  "Hoplias sp.", `Curated ID`))
+```
+
+-   Preliminary data filtering
+
+    We remove reads outside the expected size range, "NA" identifications, potential contaminants from birds and mammals with low scores, and data from negative controls.
+
+    ```{r}
+    pre_filt_tbl <-
+      raw_results_tbl %>%
+      filter(!`Primer expected length` %in% "out of range") %>% 
+      filter(!`Curated ID` == "NA") %>% 
+      filter(!(`Class (BLASTn)` %in% c("Mammalia", "Aves") & `BLASTn pseudo-score` < 98)) %>% 
+      filter(!(Sample %in% c("EM113_NEGPCR1", "EM135c4c5_NEGPCR1", "EM135c4c5_NEGPCR2", 
+                             "EM149_NEGPCR1", "EM149_NEGPCR2", "EM156_NegPCR1", 
+                             "S724_NEGPCR1", "br_jan_22", "br_nov21"))) %>% 
+      filter(!(`Obs. Curadoria` %in% c("Possible contamination")))
+    ```
+
+### Metadata integration
+
+Finally, we create a metadata table containing information about each sample (such as location, date, and filter type) and join it with the sequencing data. This information was not included in the initial bioinformatics metabarcoding pipeline input, so it's being explicitly incorporated at this stage.
+
+-   Creating the metadata dataframe
+
+    ```{r}
+    # Vectors with information for each sample
+    Sample <- c("L1_nov_dec_20_mi", "L2_nov20", "L2_dez20", "L1_out21", "L2_out21", "L3_out21", "L4_out21", "L1_nov21", "L2_nov21", "L3_nov21", "L4_nov21", "STX_L1_nov21", "STX_L2_nov21", "STX_L3_nov21", "STX_L4_nov21", "L1_jan22", "L2_jan22", "L3_jan22", "L4_jan22")
+    Expedition <- c("November and December 2020", "November 2020", "December 2020", "October 2021", "October 2021", "October 2021", "October 2021", "November 2021", "November 2021", "November 2021", "November 2021", "November 2021", "November 2021", "November 2021", "November 2021", "January 2022", "January 2022", "January 2022", "January 2022")
+    Year <- c("2020", "2020", "2020", "2021", "2021", "2021", "2021", "2021", "2021", "2021", "2021", "2021", "2021", "2021", "2021", "2022", "2022", "2022", "2022")
+    Site <- c("P1", "P2", "P2", "P3", "P4", "P2", "P1", "P3", "P4", "P2", "P1", "P3", "P4", "P2", "P1", "P3", "P4", "P2", "P1")
+    Filter <- c("MCE", "MCE", "MCE", "MCE", "MCE", "MCE", "MCE", "MCE", "MCE", "MCE", "MCE", "Sterivex", "Sterivex", "Sterivex", "Sterivex", "MCE", "MCE", "MCE", "MCE")
+    Run <- c("Run2_ago21", "Run4_out21", "Run4_out21", "Run5_dez21", "Run5_dez21", "Run5_dez21", "Run5_dez21", "Run5_dez21", "Run5_dez21", "Run5_dez21", "Run5_dez21", "EM156", "EM156", "EM156", "EM156", "EM156", "EM156", "EM156", "EM156")
+    Level <- c("High", "High", "High", "Low", "Low", "Low", "Low", "Low", "Low", "Low", "Low", "Low", "Low", "Low", "Low", "High", "High", "High", "High")
+
+    # Combine vectors into a tibble
+    metadata_tbl <- tibble(Run, Sample, Filter, Site, Expedition, Year, Level)
+    ```
+
+```{=html}
+<!-- -->
+```
+-   Joining filtered data with metadata
+
+    ```{r}
+    curated_full_tbl <- left_join(pre_filt_tbl, metadata_tbl, by = "Sample") %>%
+      select(
+        "ASV header", "ASV (Sequence)", "Curated ID", "Final ID (BLASTn)", 
+        "BLASTn pseudo-score", "Class (BLASTn)", "Family (BLASTn)", 
+        "Genus (BLASTn)", "Order (BLASTn)", "Sample", "Unique_File_name", 
+        "OTU", "Abundance", "Read origin", "Primer expected length", 
+        "ASV Size (pb)", "Run", "Filter", "Site", "Expedition", "Year", "Level"
+      ) %>% 
+      filter(Filter %in% "MCE")
+    ```
+
+-   Verifying data loss
+
+    ```{r}
+    # Calculate total reads before filtering (MCE samples only)
+    raw_n_meta_tbl <- left_join(raw_results_tbl, metadata_tbl, by = "Sample") %>%
+      filter(Filter %in% "MCE")
+    total_raw <- sum(raw_n_meta_tbl$Abundance)
+
+    # Calculate total reads after filtering
+    total_filtered <- sum(curated_full_tbl$Abundance)
+
+    # Calculate the percentage of removed reads
+    percent_removed <- (total_raw - total_filtered) / total_raw * 100
+
+    # Display the results
+    cat(paste("Total raw reads (MCE):", total_raw))
+    cat(paste("Total filtered reads (MCE):", total_filtered))
+    cat(paste("Percentage removed:", round(percent_removed, 2), "%"))
+    ```
