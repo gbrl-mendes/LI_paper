@@ -24,13 +24,12 @@ editor_options:
 
 ```
 
-
-**This pipeline integrates public tools available for metabarcoding analyses. To share or reproduce this content, please require authors' consent.**  
-**Contact:** gabrielmendesbrt@gmail.com 
+**This pipeline integrates public tools available for metabarcoding analyses. To share or reproduce this content, please require authors' consent.**\
+**Contact:** [gabrielmendesbrt\@gmail.com](mailto:gabrielmendesbrt@gmail.com){.email}
 
 # Bioinformatics
 
-## Load  R libs
+## Load R libs
 
 ```{r, eval=FALSE,echo=FALSE}
 # Loading libraries ----
@@ -81,7 +80,7 @@ curated_ids_tbl <- read_excel("/home/gabriel/projetos/lagoa_ingleses/tabelas/cur
 blast_tax <- read.csv("/home/gabriel/projetos/lagoa_ingleses/tabelas/raw/tax_blast.csv", sep = ",", check.names = FALSE)
 ```
 
-## Data merging and transformation 
+## Data merging and transformation
 
 ```{r, eval=FALSE,echo=FALSE}
 ## Selecting colunms ----
@@ -253,6 +252,30 @@ pre_filt_tbl <-
 # As tibble
 metadata_tbl <- tibble(Run, Sample, Filter, Site, Expedition, Year, Level)
 
+
+# Calculation of filtered reads for MCE
+
+raw_n_meta_tbl <- left_join(raw_results_tbl, metadata_tbl,
+                              by = "Sample") %>%
+  filter(Filter %in% "MCE")
+
+## Total raw reads
+sum(raw_n_meta_tbl$Abundance) 
+
+## Total filtered reads
+filtered <- raw_n_meta_tbl %>% filter(!`Primer expected length` %in% "out of range") %>% 
+  filter(!`Curated ID` == "NA") %>% 
+  filter(!(`Class (BLASTn)` %in% c("Mammalia", "Aves") & `BLASTn pseudo-score` < 98)) %>% 
+  filter(!(Sample %in% c("EM113_NEGPCR1", "EM135c4c5_NEGPCR1", "EM135c4c5_NEGPCR2", "EM149_NEGPCR1", 
+                         "EM149_NEGPCR2", "EM156_NegPCR1", "S724_NEGPCR1", "br_jan_22", "br_nov21"))) %>% 
+  # Filter(!(`Possible contamination` %in% c("Possible contamination"))) %>% 
+  filter(!(`Obs. Curadoria` %in% c("Possible contamination"))) 
+
+sum(filtered$Abundance)
+
+(sum(raw_n_meta_tbl$Abundance) - sum(filtered$Abundance)) / sum(raw_n_meta_tbl$Abundance) * 100
+
+
 curated_full_tbl <- left_join(pre_filt_tbl, metadata_tbl,
                               by = "Sample") %>%
   select(c("ASV header", "ASV (Sequence)", "Curated ID", "Final ID (BLASTn)", "BLASTn pseudo-score", 
@@ -264,7 +287,8 @@ curated_full_tbl <- left_join(pre_filt_tbl, metadata_tbl,
 View(curated_full_tbl)
 ```
 
-## Suplementary tables
+## Supplementary tables
+
 ```{r, eval=FALSE,echo=FALSE}
 ## Raw table ----
 
@@ -297,7 +321,7 @@ raw_resume <- raw_results_tbl %>%
   ) %>%
   unique()
 
-## Suplementar table A ----
+## Supplementary table A ----
 
 # Creating a table to use to evaluate the unfiltered data
 
@@ -541,7 +565,6 @@ View(wider_filt_tbl)
 write.csv(wider_filt_tbl, paste0(tbl_path, "/wider_dt_filt_2025.csv"))
 ```
 
-
 ## Basic stats
 
 ```{r, eval=FALSE,echo=FALSE}
@@ -641,7 +664,6 @@ grouped_filt_site <- grouped_filt_tbl %>% #dependendo da tabela, resultados dife
 
 
 ```
-
 
 ## Exploratory tables
 
@@ -1188,7 +1210,7 @@ ggsave(plot = boxplot_alpha,
 
 ```
 
-## Analysis 
+## Analysis
 
 ```{r, eval=FALSE,echo=FALSE}
 ## PCoA ----
