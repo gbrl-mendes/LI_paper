@@ -284,57 +284,38 @@ Finally, we create a metadata table containing information about each sample (su
     options(scipen = 999)
 
     filt_stats_IDs_all <- 
-      filt_asvs %>%
-      group_by(`Curated ID`, `Final ID (BLASTn)`) %>%
-      mutate(Reason = case_when(
-                `Obs. Curadoria` == "Possible contamination" & 
-                  `Primer expected length` == "out of range" ~ 
-                  "Possible contamination, out of range",
-                `Obs. Curadoria` == "Possible contamination" ~ 
-                  "Possible contamination",
-                `Primer expected length` == "out of range" ~ 
-                  "out of range")) %>% 
-      reframe("Reads_t" = sum(Abundance),
-              "Class" = paste(unique(`Class (BLASTn)`,
-                                       collapse = ", ")),
-              "Samples" = paste(unique(Sample), 
-                                  collapse = ", ")) %>%
-      ungroup() %>%
-      mutate("%_Total" = round(Reads_t / 
-                               sum(Reads_t) * 100,
-                               digits = 4)) %>%
-      select(`Curated ID`,
-             `Final ID (BLASTn)`,
-             Class,
-             Reads_t,
-             `%_Total`,
-             Samples,
-             Reason) %>% 
-      arrange(desc(Reads_t))
-
-    # Infos about fish IDs filtered from dataset
-
-    filt_stats_fish <- 
-      filt_asvs %>%
-      filter(! is.na(`Curated ID`),
-             `Class (BLASTn)` == "Actinopteri") %>% 
-      group_by(`Curated ID`, `Final ID (BLASTn)`) %>%
-      reframe("Reads_t" = sum(Abundance),
-              "Class" = paste(unique(`Class (BLASTn)`,
-                                       collapse = ", ")),
-              "Samples" = paste(unique(Sample), 
-                                  collapse = ", ")) %>%
-      ungroup() %>%
-      mutate("%_Total" = round(Reads_t / 
-                               sum(Reads_t) * 100,
-                               digits = 3)) %>%
-      select(`Curated ID`,
-             `Final ID (BLASTn)`,
-             Class,
-             Reads_t,
-             `%_Total`,
-             Samples) %>% 
-      arrange(desc(Reads_t))
+        filt_asvs %>%
+        group_by(`Curated ID`, `Final ID (BLASTn)`) %>%
+        reframe("Nº Reads" = sum(Abundance),
+                "Class" = paste(unique(`Class (BLASTn)`),
+                                collapse = ", "),
+                "Samples" = paste(unique(Sample), 
+                                  collapse = ", "),
+                "Reason" = paste(
+                  unique(c(
+                    if (any(`Curated ID` == "NA"))
+                      "Curated ID is NA", 
+                    if (any(`Obs. Curadoria` == 
+                            "Possible contamination")) 
+                      "Possible contamination",
+                    if (any(`Primer expected length` == 
+                            "out of range")) 
+                      "out of range",
+                    if (any(`Class (BLASTn)` != "Actinopteri" & 
+                             !is.na(`Class (BLASTn)`))) 
+                    paste("Class:", unique(`Class (BLASTn)`)), 
+                    collapse = ", ")))) %>%
+        ungroup() %>%
+        mutate("%_Total" = round(`Nº Reads` /
+                                   sum(`Nº Reads`) * 100,
+                                 digits = 4)) %>%
+        select(`Curated ID`, 
+               `Final ID (BLASTn)`, 
+               Class, `Nº Reads`, 
+               `%_Total`, 
+               Samples, 
+               Reason) %>% 
+        arrange(desc(`Nº Reads`))
 
     # Infos about Curated IDs filtered 
     # from dataset for each sample
@@ -355,10 +336,10 @@ Finally, we create a metadata table containing information about each sample (su
       ungroup() %>% 
       
       group_by(`Curated ID`, `Final ID (BLASTn)`) %>%
-      mutate("Reads_t" = sum(Reads_s),
+      mutate("Nº Reads" = sum(Reads_s),
              "Abundance_t" = sum(Abundance_s)) %>%
       ungroup() %>%         
-      mutate("% Total" = Reads_t / Abundance_t * 100,
+      mutate("% Total" = `Nº Reads` / Abundance_t * 100,
              "% Amostra" = Reads_s / Abundance_s * 100) %>%
       arrange(desc(Reads_s))
 
