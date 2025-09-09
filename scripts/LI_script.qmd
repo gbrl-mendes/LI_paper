@@ -34,10 +34,9 @@ This pipeline integrates public tools available for metabarcoding analyses. To s
       library("ggsignif")
       library("ggrepel")
       library("openxlsx")
+      library("colorspace")
       }
     ```
-
-<!-- -->
 
 -   Create project folders
 
@@ -63,8 +62,6 @@ This pipeline integrates public tools available for metabarcoding analyses. To s
       }
     }
     ```
-
-<!-- -->
 
 -   Data acquring
 
@@ -117,8 +114,6 @@ curated_ids_tbl <- # Curated identifications df
              "Obs. Curadoria","Read origin", 
              "Primer expected length", "ASV Size (pb)")
     ```
-
-<!-- -->
 
 -   Adding complete taxonomy from BLASTr output
 
@@ -222,7 +217,7 @@ Finally, we create a metadata table containing information about each sample (su
 
 ### Data filtering
 
--   We remove reads outside the expected size range, "NA" identifications, potential contaminants from birds and mammals with low scores, and data from negative controls. Only data generated with MCE filter are used for downstream analyses.
+-   We remove reads outside the expected size range, NA identifications, potential contaminants from birds and mammals with low scores, and data from negative controls. Only data generated with MCE filter are used for downstream analyses.
 
     ```{r}
     curated_full_tbl
@@ -250,7 +245,9 @@ Finally, we create a metadata table containing information about each sample (su
     filt_asvs <- 
       setdiff(raw_results_full_tbl,
               curated_full_tbl_2) %>%
-      filter(!(Filter) %in% "Sterivex")
+      filter(!(Filter) %in% "Sterivex") %>% 
+      mutate(`Curated ID` = ifelse(`Curated ID` == "NA", NA,
+                                   `Curated ID`))
 
     # Infos about classes of ASVs filtered
     filt_stats_class <- 
@@ -283,74 +280,165 @@ Finally, we create a metadata table containing information about each sample (su
     # Infos about Curated IDs filtered from dataset
     options(scipen = 999)
 
-    filt_stats_IDs_all <- 
-        filt_asvs %>%
-        group_by(`Curated ID`, `Final ID (BLASTn)`) %>%
-        reframe("Nº Reads" = sum(Abundance),
-                "Class" = paste(unique(`Class (BLASTn)`),
-                                collapse = ", "),
-                "Samples" = paste(unique(Sample), 
-                                  collapse = ", "),
-                "Reason" = paste(
-                  unique(c(
-                    if (any(`Curated ID` == "NA"))
-                      "Curated ID is NA", 
-                    if (any(`Obs. Curadoria` == 
-                            "Possible contamination")) 
-                      "Possible contamination",
-                    if (any(`Primer expected length` == 
-                            "out of range")) 
-                      "out of range",
-                    if (any(`Class (BLASTn)` != "Actinopteri" & 
-                             !is.na(`Class (BLASTn)`))) 
-                    paste("Class:", unique(`Class (BLASTn)`)), 
-                    collapse = ", ")))) %>%
-        ungroup() %>%
-        mutate("%_Total" = round(`Nº Reads` /
-                                   sum(`Nº Reads`) * 100,
-                                 digits = 4)) %>%
-        select(`Curated ID`, 
-               `Final ID (BLASTn)`, 
-               Class, `Nº Reads`, 
-               `%_Total`, 
-               Samples, 
-               Reason) %>% 
-        arrange(desc(`Nº Reads`))
 
-    # Infos about Curated IDs filtered 
-    # from dataset for each sample
-    filt_stats_IDs_full <- 
+    ##### CORRIGIR ESSA TABELA
+    filt_stats_IDs_all <-
       filt_asvs %>%
-      filter(!is.na(`Curated ID`),
-             `Class (BLASTn)` %in% "Actinopteri",
-             # Sample %in% c("L1_jan22", "L2_jan22")
-             ) %>%
-      
-      group_by(Sample) %>%
-      mutate(Abundance_s = sum(Abundance)) %>%
-      ungroup() %>%
-      
-      group_by(`Curated ID`, `Final ID (BLASTn)`, Sample) %>%
-      summarise("Reads_s" = sum(Abundance),
-                "Abundance_s" = first(Abundance_s)) %>%
-      ungroup() %>% 
-      
       group_by(`Curated ID`, `Final ID (BLASTn)`) %>%
-      mutate("Nº Reads" = sum(Reads_s),
-             "Abundance_t" = sum(Abundance_s)) %>%
-      ungroup() %>%         
-      mutate("% Total" = `Nº Reads` / Abundance_t * 100,
-             "% Amostra" = Reads_s / Abundance_s * 100) %>%
-      arrange(desc(Reads_s))
+      reframe("Nº Reads" = sum(Abundance),
+              "Class" = paste(unique(`Class (BLASTn)`), 
+                        collapse = ", "),
+        "Samples" = paste(unique(Sample), 
+                          collapse = ", "),
+        "Reason" = paste(unique(c(
+          if (any(is.na(`Curated ID`))) "ID is NA",
+          if (any(`Obs. Curadoria` == "Possible contamination")) 
+            "Contamination",
+          if (any(`Primer expected length` == "out of range")) 
+            "Out of range",
+          if (any((`Class (BLASTn)` != "Actinopteri" & 
+                   !is.na(`Class (BLASTn)`))))
+            paste("Class:", `Class (BLASTn)`)
+          )), collapse = ", ")) %>%
+      mutate("%" = round(`Nº Reads` / sum(`Nº Reads`) * 100, 
+                         digits = 4)) %>%
+      select(`Curated ID`, 
+             `Final ID (BLASTn)`, 
+             `Nº Reads`, 
+             `%`, 
+             Samples, 
+             Reason,
+             Class) %>% 
+      arrange(desc(`Nº Reads`))
 
-    # Visualizar o resultado
-    View(filt_stats_IDs)
-    ```
+    # Infos about IDs and samples
 
--   Creating plots from tibbles above
+    # Retriving total sample abundances
+    sample_abd <- 
+      raw_results_full_tbl %>%
+      filter(!(Filter) %in% "Sterivex") %>% 
+      group_by(Sample) %>%
+      summarize(total_abundance = sum(Abundance, na.rm = TRUE))
 
-    ```{r}
+    filt_stats_IDs_samples <-
+      filt_asvs %>%
+      group_by(`Curated ID`, `Final ID (BLASTn)`, Sample, `Family (BLASTn)`) %>% 
+      reframe("Family" =`Family (BLASTn)`,
+              "Reads" = sum(Abundance),
+              "Class" = paste(unique(`Class (BLASTn)`),
+                              collapse = ", "),
+              "Reason" = paste(unique(c(
+                if (any(is.na(`Curated ID`))) "ID is NA",
+                if (any(`Obs. Curadoria` %in%
+                        "Possible contamination")) 
+                  "Contamination",
+                if (any(`Primer expected length` %in%
+                        "out of range"))
+                  "Out of range",
+                if (any((`Class (BLASTn)` != "Actinopteri" &
+                         !is.na(`Class (BLASTn)`))))
+                  paste("Class:", `Class (BLASTn)`))),
+                collapse = ", ")) %>% 
+      ungroup() %>% 
+      # group_by(Sample) %>%
+      left_join(sample_abd, by = "Sample") %>% 
+      # mutate("Sample abundance" = sum(`ID abundance`),
+      #        "RRA %" = `ID abundance` / `Sample abundance` * 100,
+      #        digits = 4) %>% 
+      mutate("RRA %" = round(Reads / 
+                               total_abundance * 100,
+                             digits = 3)) %>% 
+      select(`Curated ID`, 
+             `Final ID (BLASTn)`,
+             Reads,
+             `RRA %`, 
+             Sample,
+             Reason,
+             Class,
+             Family) %>% 
+      arrange(desc(`RRA %`))
+      
+    # Plot
+    sample_levels <- c("br_nov21", 
+                       "br_jan_22",  
+                       "EM135c4c5_NEGPCR1", 
+                       "EM135c4c5_NEGPCR2", 
+                       "EM149_NEGPCR1", 
+                       "EM149_NEGPCR2", 
+                       "EM113_NEGPCR1",
+                       "EM156_NegPCR1",
+                       "S724_NEGPCR1",
+                       "L1_nov_dec_20_mi",
+                       "L2_nov20",
+                       "L2_dez20",
+                       "L1_out21",
+                       "L2_out21",
+                       "L3_out21",
+                       "L1_nov21",
+                       "L2_nov21",
+                       "L3_nov21",
+                       "L4_nov21",
+                       "L1_jan22",
+                       "L2_jan22",
+                       "L3_jan22",
+                       "L4_jan22")
+    sample_types <- c("Filtering control,
+                      Filtering control")
+      
+    # filtered_plot_fam <-
+    filtered_plot <-
+    filt_stats_IDs_samples %>% 
+      mutate(Sample = factor(Sample, 
+                             levels = sample_levels)) %>%
+      mutate(Class = ifelse(Class == "class of subphylum of phylum of kingdom of Bacteria", "(...) Bacteria", Class)) %>%
+      mutate(`Curated ID` = ifelse(`Curated ID` == "order of subclass of class of subphylum of phylum of kingdom of Bacteria", "(...) Bacteria", `Curated ID`)) %>% 
+      mutate(Family = ifelse(Family == "family of suborder of order of subclass of class of subphylum of phylum of kingdom of Bacteria", "(...) Bacteria", Family)) %>% 
+      mutate(`Curated ID` = ifelse(`Curated ID` == "genus of subfamily of Trichomycteridae", "(...) Trichomycteridae", `Curated ID`)) %>%
+      mutate(sample_type = case_when(str_detect(Sample, "^br_") ~
+                                       "Filtration\n control",
+                                     str_detect(Sample, "PCR") ~
+                                       "PCR control",
+                                    TRUE ~ "Sample")) %>% 
+      ggplot(aes(Sample, 
+                 `Curated ID`, 
+                 fill = `RRA %`)) +
+      geom_tile() +
+      facet_grid(cols = vars(sample_type),
+                 rows = c(vars(Class)
+                          # vars(Family)),
+                          ),
+                 space = "free",
+                 scales = "free",
+                 drop = TRUE) +
+      geom_text(aes(label = sprintf("%.3f%%", `RRA %`)),
+                    color = "black",
+                    size = 2) +
+      scale_fill_continuous_sequential("BluGrn") +
+      theme(panel.grid.major = element_line(
+              color = "grey", linewidth = 0.2, linetype = 1),
+            strip.background = element_rect(fill = "#e4e4e4"),
+            strip.text = element_text(
+              size = 8.5, 
+              face = "bold", 
+              color = "black"),
+            axis.text.y = element_text(size = 8.5, 
+                                       face = "italic"),
+            axis.title = element_text(size = 10, 
+                                      face = "bold"),
+            axis.text.x = element_text(angle = 45, 
+                                       hjust = 0.85,
+                                       vjust = 0.85),
+            strip.text.y = element_text(angle = 0))
 
+        ggsave(plot = filtered_plot,
+        # ggsave(plot = filtered_plot_fam,
+               filename = paste("/home/gabriel/projetos/LI_paper/results/figures/", "filtered_plot", "-", Sys.Date(), ".pdf", sep = ""), units = "cm",
+               # filename = paste("/home/gabriel/projetos/LI_paper/results/figures/", "filtered_plot_fam", "-", Sys.Date(), ".pdf", sep = ""), units = "cm", 
+               height = 27.5, 
+               # height = 35.5, 
+               width = 30.5,
+               # width = 35.5,
+               dpi = 600)
     ```
 
 -   Verifying data loss
