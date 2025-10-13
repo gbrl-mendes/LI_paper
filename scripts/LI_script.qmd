@@ -77,35 +77,37 @@ This pipeline integrates public tools available for metabarcoding analyses. To s
 
 -   Selecting colunms and adjusting the raw data table
 
-```{r}
-pre_raw_results_tbl <-
-  pre_raw_results_tbl %>%
-  select(
-    "Sample", "Unique_File_name", "OTU", "Abundance", "Obs. Curadoria", 
-    "Possible contamination", "Read origin", "Primer expected length", 
-    "ASV Size (pb)", "ASV header"
-  ) %>%
-  mutate(Sample = str_replace(Sample, "__", "_"))
-```
+    ```{r}
+    pre_raw_results_tbl <-
+      pre_raw_results_tbl %>%
+      select("Sample", "Unique_File_name", "OTU", 
+             "Abundance", "Obs. Curadoria", 
+             "Possible contamination", "Read origin", 
+             "Primer expected length", "ASV Size (pb)", 
+             "ASV header") %>%
+      mutate(Sample = str_replace(Sample, "__", "_"))
+    ```
+
+<!-- -->
 
 -   Selecting colunms from curated identifications table
 
-```{r}
-curated_ids_tbl <- # Curated identifications df
-  curated_ids_tbl %>%
-  select(
-    "ASV header", "ASV (Sequence)", "Curated ID", 
-    "Final ID (BLASTn)", "BLASTn pseudo-score", 
-    "Class (BLASTn)", "Curated Order (BLASTn)") %>%
-  unique()
-```
+    ```{r}
+    curated_ids_tbl <- # Curated identifications df
+      curated_ids_tbl %>%
+      select("ASV header", "ASV (Sequence)", "Curated ID",
+             "Final ID (BLASTn)", "BLASTn pseudo-score",
+             "Class (BLASTn)", "Curated Order (BLASTn)") %>%
+      unique()
+    ```
 
 ### Data integration and Taxonomic Enrichment
 
 -   Joining the results table with curated identifications
 
     ```{r}
-    raw_results_tbl <- pre_raw_results_tbl %>%
+    raw_results_tbl <- 
+      pre_raw_results_tbl %>%
       left_join(curated_ids_tbl, by = "ASV header") %>%
       select("ASV header","ASV (Sequence)", "Curated ID", 
              "Final ID (BLASTn)","BLASTn pseudo-score", 
@@ -119,7 +121,8 @@ curated_ids_tbl <- # Curated identifications df
 
     ```{r}
     # Prepare the BLAST taxonomy table
-    blast_tax_less <- blast_tax[2:85] %>%
+    blast_tax_less <- 
+      blast_tax[2:85] %>%
       select(ASV,`Family (BLASTn)`) %>% 
       rename(`ASV (Sequence)` = "ASV") %>%
       left_join(raw_results_tbl, by = "ASV (Sequence)") %>% 
@@ -136,12 +139,11 @@ curated_ids_tbl <- # Curated identifications df
                 by = "ASV (Sequence)") %>% 
       select("ASV header", "ASV (Sequence)", "Curated ID", 
              "Final ID (BLASTn)", "BLASTn pseudo-score", 
-             "Class (BLASTn)", "Family (BLASTn)", "Genus (BLASTn)",
-             "Curated Order (BLASTn)", "Sample", 
-             "Unique_File_name", "OTU", "Abundance", 
-             "Obs. Curadoria", "Read origin", 
-             "Primer expected length", 
-             "ASV Size (pb)") %>% 
+             "Class (BLASTn)", "Family (BLASTn)", 
+             "Genus (BLASTn)", "Curated Order (BLASTn)", 
+             "Sample", "Unique_File_name", "OTU", 
+             "Abundance", "Obs. Curadoria", "Read origin", 
+             "Primer expected length", "ASV Size (pb)") %>% 
       unique() %>% 
       rename("Order (BLASTn)" = "Curated Order (BLASTn)")
     ```
@@ -154,39 +156,71 @@ Finally, we create a metadata table containing information about each sample (su
 
     ```{r}
     # Vectors with information for each sample
-    Sample <- c("L1_nov_dec_20_mi", "L2_nov20", "L2_dez20", "L1_out21", "L2_out21", "L3_out21", "L4_out21", "L1_nov21", "L2_nov21", "L3_nov21", "L4_nov21", "STX_L1_nov21", "STX_L2_nov21", "STX_L3_nov21", "STX_L4_nov21", "L1_jan22", "L2_jan22", "L3_jan22", "L4_jan22")
+    Sample <- c("L1_nov_dec_20_mi", "L2_nov20", "L2_dez20",
+                "L1_out21", "L2_out21", "L3_out21", "L4_out21",
+                "L1_nov21", "L2_nov21", "L3_nov21", "L4_nov21",
+                "STX_L1_nov21", "STX_L2_nov21", "STX_L3_nov21",
+                "STX_L4_nov21", "L1_jan22", "L2_jan22",
+                "L3_jan22", "L4_jan22")
 
-    Expedition <- c("November and December 2020", "November 2020", "December 2020", "October 2021", "October 2021", "October 2021", "October 2021", "November 2021", "November 2021", "November 2021", "November 2021", "November 2021", "November 2021", "November 2021", "November 2021", "January 2022", "January 2022", "January 2022", "January 2022")
-    Year <- c("2020", "2020", "2020", "2021", "2021", "2021", "2021", "2021", "2021", "2021", "2021", "2021", "2021", "2021", "2021", "2022", "2022", "2022", "2022")
-    Site <- c("P1", "P2", "P2", "P3", "P4", "P2", "P1", "P3", "P4", "P2", "P1", "P3", "P4", "P2", "P1", "P3", "P4", "P2", "P1")
+    Expedition <- c("November and December 2020", 
+                    "November 2020", "December 2020", 
+                    "October 2021", "October 2021", 
+                    "October 2021", "October 2021", 
+                    "November 2021", "November 2021", 
+                    "November 2021", "November 2021", 
+                    "November 2021", "November 2021", 
+                    "November 2021", "November 2021", 
+                    "January 2022", "January 2022", 
+                    "January 2022", "January 2022")
 
-    Filter <- c("MCE", "MCE", "MCE", "MCE", "MCE", "MCE", "MCE", "MCE", "MCE", "MCE", "MCE", "Sterivex", "Sterivex", "Sterivex", "Sterivex", "MCE", "MCE", "MCE", "MCE")
+    Year <- c("2020", "2020", "2020", "2021", "2021", "2021",
+              "2021", "2021", "2021", "2021", "2021", "2021",
+              "2021", "2021", "2021", "2022", "2022", "2022",
+              "2022")
 
-    Run <- c("Run2_ago21", "Run4_out21", "Run4_out21", "Run5_dez21", "Run5_dez21", "Run5_dez21", "Run5_dez21", "Run5_dez21", "Run5_dez21", "Run5_dez21", "Run5_dez21", "EM156", "EM156", "EM156", "EM156", "EM156", "EM156", "EM156", "EM156")
+    Site <- c("P1", "P2", "P2", "P3", "P4", "P2", "P1", "P3",
+              "P4", "P2", "P1", "P3", "P4", "P2", "P1", "P3",
+              "P4", "P2", "P1")
 
-    Level <- c("High", "High", "High", "Low", "Low", "Low", "Low", "Low", "Low", "Low", "Low", "Low", "Low", "Low", "Low", "High", "High", "High", "High")
+    Filter <- c("MCE", "MCE", "MCE", "MCE", "MCE", "MCE", 
+                "MCE", "MCE", "MCE", "MCE", "MCE", "Sterivex",
+                "Sterivex", "Sterivex", "Sterivex", "MCE", 
+                "MCE", "MCE", "MCE")
+
+    Run <- c("Run2_ago21", "Run4_out21", "Run4_out21", 
+             "Run5_dez21", "Run5_dez21", "Run5_dez21",
+             "Run5_dez21", "Run5_dez21", "Run5_dez21",
+             "Run5_dez21", "Run5_dez21", "EM156", "EM156",
+             "EM156", "EM156", "EM156", "EM156", "EM156", 
+             "EM156")
+
+    Level <- c("High", "High", "High", "Low", "Low", "Low", 
+               "Low", "Low", "Low", "Low", "Low", "Low", 
+               "Low", "Low", "Low", "High", "High", "High",
+               "High")
 
     # Combine vectors into a tibble
-    metadata_tbl <- tibble(Run, Sample, Filter, Site, Expedition, Year, Level)
+    metadata_tbl <- 
+      tibble(Run, Sample, Filter, Site, Expedition, Year, Level)
     ```
 
 -   Joining data with metadata
 
     ```{r}
-    raw_results_full_tbl <- left_join(raw_results_tax_tbl, 
-                                      metadata_tbl, 
-                                      by = "Sample") %>%
-      select(
-        "ASV header", "ASV (Sequence)", "Curated ID",
-        "Obs. Curadoria", "Final ID (BLASTn)", 
-        "BLASTn pseudo-score", "Class (BLASTn)", 
-        "Family (BLASTn)","Genus (BLASTn)", 
-        "Order (BLASTn)", "Sample", "Unique_File_name", 
-        "OTU", "Abundance", "Read origin", 
-        "Primer expected length", "ASV Size (pb)", 
-        "Run", "Filter", "Site", "Expedition", "Year", 
-        "Level"
-        )
+    raw_results_full_tbl <- 
+      left_join(raw_results_tax_tbl,
+                metadata_tbl,
+                by = "Sample") %>%
+      select("ASV header", "ASV (Sequence)", "Curated ID",
+             "Obs. Curadoria", "Final ID (BLASTn)",
+             "BLASTn pseudo-score", "Class (BLASTn)",
+             "Family (BLASTn)","Genus (BLASTn)",
+             "Order (BLASTn)", "Sample", "Unique_File_name",
+             "OTU", "Abundance", "Read origin",
+             "Primer expected length", "ASV Size (pb)",
+             "Run", "Filter", "Site", "Expedition", "Year",
+             "Level")
     ```
 
 ### Manual corrections
@@ -195,14 +229,16 @@ Finally, we create a metadata table containing information about each sample (su
 
     ```{r}
     # Update families for specific genera (february 10th 2025)
-    raw_results_full_tbl <- raw_results_full_tbl %>% 
+    raw_results_full_tbl <- 
+      raw_results_full_tbl %>% 
       mutate(`Family (BLASTn)` = 
-               ifelse(`Genus (BLASTn)` %in% c("Psalidodon", 
-                                              "Moenkhausia", 
-                                              "Astyanax", 
-                                              "Hemigrammus", 
+               ifelse(`Genus (BLASTn)` %in% c("Psalidodon",
+                                              "Moenkhausia",
+                                              "Astyanax",
+                                              "Hemigrammus",
                                               "Oligosarcus"),
-                      "Acestrorhamphidae", `Family (BLASTn)`)) %>%
+                      "Acestrorhamphidae",
+                      `Family (BLASTn)`)) %>%
       mutate(`Family (BLASTn)` = 
                ifelse(`Genus (BLASTn)` %in% "Piabina",
                       "Stevardiidae",
@@ -211,8 +247,10 @@ Finally, we create a metadata table containing information about each sample (su
     # Group Hoplias species (february 25th 2025)
     raw_results_full_tbl <- raw_results_full_tbl %>%
       mutate(`Curated ID` =
-               ifelse(`Curated ID` %in% c("Hoplias malabaricus", "Hoplias intermedius"),
-                      "Hoplias sp.", `Curated ID`))
+               ifelse(`Curated ID` %in% c("Hoplias malabaricus",
+                                          "Hoplias intermedius"),
+                      "Hoplias sp.", 
+                      `Curated ID`))
     ```
 
 ### Data filtering
@@ -220,98 +258,106 @@ Finally, we create a metadata table containing information about each sample (su
 -   We remove reads outside the expected size range, NA identifications, potential contaminants from birds and mammals with low scores, and data from negative controls. Only data generated with MCE filter are used for downstream analyses.
 
     ```{r}
-    curated_full_tbl
+    curated_full_tbl <-
     curated_full_tbl_2 <-
       raw_results_full_tbl %>%
-      filter(
-        Filter == "MCE",
-        `Primer expected length` != "out of range",
-        !is.na(`Curated ID`),
-        !(`Class (BLASTn)` %in% c("Mammalia", "Aves") & 
-            `BLASTn pseudo-score` < 98),
-        !Sample %in% c("EM113_NEGPCR1", "EM135c4c5_NEGPCR1", 
-                       "EM135c4c5_NEGPCR2","EM149_NEGPCR1", 
-                       "EM149_NEGPCR2", "EM156_NegPCR1",
-                       "S724_NEGPCR1", "br_jan_22", 
-                       "br_nov21"),
-        `Obs. Curadoria` != "Possible contamination"
-        )
+      filter(Filter == "MCE",
+             `Primer expected length` != "out of range",
+             !is.na(`Curated ID`),
+             !(`Class (BLASTn)` %in% c("Mammalia", "Aves") &
+                 `BLASTn pseudo-score` < 98),
+             !Sample %in% c("EM113_NEGPCR1", "EM135c4c5_NEGPCR1",
+                            "EM135c4c5_NEGPCR2","EM149_NEGPCR1",
+                            "EM149_NEGPCR2", "EM156_NegPCR1",
+                            "S724_NEGPCR1", "br_jan_22", 
+                            "br_nov21"),
+             `Obs. Curadoria` != "Possible contamination")
     ```
 
--   Analysis of removed data
+#### Analysis of removed data
 
-    ```{r}
-    # All MCE ASVs filtered from dataset
-    filt_asvs <- 
-      setdiff(raw_results_full_tbl,
-              curated_full_tbl_2) %>%
-      filter(!(Filter) %in% "Sterivex") %>% 
-      mutate(`Curated ID` = ifelse(`Curated ID` == "NA", NA,
-                                   `Curated ID`))
+```{r}
+# All MCE ASVs filtered from dataset 
+filt_asvs <- 
+  setdiff(raw_results_full_tbl,
+          curated_full_tbl_2) %>%
+  filter(!(Filter) %in% "Sterivex") %>% 
+  mutate(`Curated ID` = ifelse(`Curated ID` == "NA", NA,
+                               `Curated ID`))
 
-    # Infos about classes of ASVs filtered
-    filt_stats_class <- 
-      filt_asvs %>%
-      group_by(`Class (BLASTn)`) %>%
-      reframe("Total reads" = sum(Abundance),
-              "ASVs" = length(unique(`ASV (Sequence)`)),
-              "OTUs" = length(unique(OTU)),
-              "Families" = length(unique(`Family (BLASTn)`)))
+# Infos about classes of ASVs filtered
+filt_stats_class <- 
+  filt_asvs %>%
+  group_by(`Class (BLASTn)`) %>%
+  reframe("Total reads" = sum(Abundance),
+          "ASVs" = length(unique(`ASV (Sequence)`)),
+          "OTUs" = length(unique(OTU)),
+          "Families" = length(unique(`Family (BLASTn)`)))
 
-    # Infos about fish ASVs filtered
-    filt_stats_fish <- 
-      filt_asvs %>%
-      filter(`Class (BLASTn)` == "Actinopteri") %>% 
-      group_by(`Curated ID`) %>%
-      reframe("Total reads" = sum(Abundance),
-              "ASVs" = length(unique(`ASV (Sequence)`)),
-              "OTUs" = length(unique(OTU)),
-              "Families" = length(unique(`Family (BLASTn)`)))
+# Infos about fish ASVs filtered
+filt_stats_fish <- 
+  filt_asvs %>%
+  filter(`Class (BLASTn)` == "Actinopteri") %>% 
+  group_by(`Curated ID`) %>%
+  reframe("Total reads" = sum(Abundance),
+          "ASVs" = length(unique(`ASV (Sequence)`)),
+          "OTUs" = length(unique(OTU)),
+          "Families" = length(unique(`Family (BLASTn)`)))
 
-    # Infos about samples filtered from dataset
-    filt_stats_sample <-
-      filt_asvs %>% 
-      group_by(Sample) %>% 
-      reframe("Total reads" = sum(Abundance),
-              "ASVs" = length(unique(`ASV (Sequence)`)),
-              "OTUs" = length(unique(OTU)),
-              "Families" = length(unique(`Family (BLASTn)`)))
+# Infos about samples filtered from dataset
+filt_stats_sample <-
+  filt_asvs %>% 
+  group_by(Sample) %>% 
+  reframe("Total reads" = sum(Abundance),
+          "ASVs" = length(unique(`ASV (Sequence)`)),
+          "OTUs" = length(unique(OTU)),
+          "Families" = length(unique(`Family (BLASTn)`)))
 
-    # Infos about Curated IDs filtered from dataset
-    options(scipen = 999)
+# Infos about Curated IDs filtered from dataset
+options(scipen = 999)
+filt_stats_IDs_all <-
+  filt_asvs %>%
+  group_by(`Curated ID`, `Final ID (BLASTn)`) %>% 
+  summarise("Family" =`Family (BLASTn)`,
+            "Reads" = sum(Abundance),
+            "Class" = paste(unique(`Class (BLASTn)`), 
+                            collapse = ", "),
+            "Samples" = paste(unique(Sample), 
+                            collapse = ", "),
+            "Reasons" = paste(unique(c(
+              if (any(is.na(`Curated ID`))) "ID is NA",
+              if (any(`Obs. Curadoria` %in%
+                      "Possible contamination"))
+                "Contamination",
+              if (any(`Primer expected length` %in%
+                      "out of range"))
+                "Out of range",
+              if (any((`Class (BLASTn)` != "Actinopteri" &
+                       !is.na(`Class (BLASTn)`)))) 
+                paste("Class:", `Class (BLASTn)`), 
+              if (any(str_detect(Sample, "PCR")))
+                "PCR control",
+              if (any(str_detect(Sample, "^br_")))
+                "Extraction control" )),
+              collapse = ", ")) %>%
+  ungroup() %>% 
+  select(`Curated ID`, 
+         `Final ID (BLASTn)`,
+         Reads,
+         Samples,
+         Reasons,
+         Class,
+         Family) %>% 
+  arrange(desc(Reads)) %>% 
+  unique()
+```
 
+#### Table S4
 
-    ##### CORRIGIR ESSA TABELA
-    filt_stats_IDs_all <-
-      filt_asvs %>%
-      group_by(`Curated ID`, `Final ID (BLASTn)`) %>%
-      reframe("Nº Reads" = sum(Abundance),
-              "Class" = paste(unique(`Class (BLASTn)`), 
-                        collapse = ", "),
-        "Samples" = paste(unique(Sample), 
-                          collapse = ", "),
-        "Reason" = paste(unique(c(
-          if (any(is.na(`Curated ID`))) "ID is NA",
-          if (any(`Obs. Curadoria` == "Possible contamination")) 
-            "Contamination",
-          if (any(`Primer expected length` == "out of range")) 
-            "Out of range",
-          if (any((`Class (BLASTn)` != "Actinopteri" & 
-                   !is.na(`Class (BLASTn)`))))
-            paste("Class:", `Class (BLASTn)`)
-          )), collapse = ", ")) %>%
-      mutate("%" = round(`Nº Reads` / sum(`Nº Reads`) * 100, 
-                         digits = 4)) %>%
-      select(`Curated ID`, 
-             `Final ID (BLASTn)`, 
-             `Nº Reads`, 
-             `%`, 
-             Samples, 
-             Reason,
-             Class) %>% 
-      arrange(desc(`Nº Reads`))
+**Table of removed taxonomic identifications.** Each row corresponds to one taxon in a given sample and summarizes the information that led to its exclusion from the final dataset. Columns include the taxonomic class (Class), family (Family), taxon name (Taxa), number of reads (Reads), relative read abundance (% RRA), and the sample of origin (Sample). Since different ASVs can be grouped under the same taxon within a sample, the 'Reason' column specifies why that taxon was removed (e.g., detected in controls – Contamination or PCR control/Filtration control; amplicon length outside the expected range – Out of range; unidentified ASVs – ID is NA; or belonging to a non-Actinopterygii class such as Mammalia or Aves).
 
-    # Infos about IDs and samples
+```{r}
+# Infos about IDs and samples
 
     # Retriving total sample abundances
     sample_abd <- 
@@ -322,12 +368,12 @@ Finally, we create a metadata table containing information about each sample (su
 
     filt_stats_IDs_samples <-
       filt_asvs %>%
-      group_by(`Curated ID`, `Final ID (BLASTn)`, Sample, `Family (BLASTn)`) %>% 
-      reframe("Family" =`Family (BLASTn)`,
+      group_by(`Curated ID`, `Final ID (BLASTn)`, Sample) %>% 
+      summarise("Family" =`Family (BLASTn)`,
               "Reads" = sum(Abundance),
               "Class" = paste(unique(`Class (BLASTn)`),
                               collapse = ", "),
-              "Reason" = paste(unique(c(
+              "Reasons" = paste(unique(c(
                 if (any(is.na(`Curated ID`))) "ID is NA",
                 if (any(`Obs. Curadoria` %in%
                         "Possible contamination")) 
@@ -336,15 +382,15 @@ Finally, we create a metadata table containing information about each sample (su
                         "out of range"))
                   "Out of range",
                 if (any((`Class (BLASTn)` != "Actinopteri" &
-                         !is.na(`Class (BLASTn)`))))
-                  paste("Class:", `Class (BLASTn)`))),
-                collapse = ", ")) %>% 
+                     !is.na(`Class (BLASTn)`))))
+                  paste("Class:", `Class (BLASTn)`),
+                if (any(str_detect(Sample, "PCR")))
+                  "PCR control",
+                if (any(str_detect(Sample, "^br_")))
+                  "Extraction control" )), 
+                collapse = ", ")) %>%
       ungroup() %>% 
-      # group_by(Sample) %>%
       left_join(sample_abd, by = "Sample") %>% 
-      # mutate("Sample abundance" = sum(`ID abundance`),
-      #        "RRA %" = `ID abundance` / `Sample abundance` * 100,
-      #        digits = 4) %>% 
       mutate("RRA %" = round(Reads / 
                                total_abundance * 100,
                              digits = 3)) %>% 
@@ -353,14 +399,20 @@ Finally, we create a metadata table containing information about each sample (su
              Reads,
              `RRA %`, 
              Sample,
-             Reason,
+             Reasons,
              Class,
              Family) %>% 
-      arrange(desc(`RRA %`))
-      
-    # Plot
-    sample_levels <- c("br_nov21", 
-                       "br_jan_22",  
+      arrange(desc(`RRA %`)) %>% 
+      unique()
+```
+
+#### Figure S2
+
+**Tile plot of removed sequences.** The plot illustrates the taxonomic composition of sequences removed during the filtering process. The X-axis represents samples, grouped by category (filtration control, PCR control, and environmental sample), and the Y-axis shows the taxonomic identifications of sequences excluded from the final dataset. Sequences detected in controls were discarded, as well as those not meeting quality or taxonomic filtering criteria (e.g., unidentified, out-of-range amplicon length, non-Actinopterygii, or potential contaminations).
+
+```{r}
+# Sample levels for plot 
+    sample_levels <- c("br_nov21", "br_jan_22",  
                        "EM135c4c5_NEGPCR1", 
                        "EM135c4c5_NEGPCR2", 
                        "EM149_NEGPCR1", 
@@ -382,23 +434,27 @@ Finally, we create a metadata table containing information about each sample (su
                        "L2_jan22",
                        "L3_jan22",
                        "L4_jan22")
-    sample_types <- c("Filtering control,
+    
+     # Sample types for plot
+     sample_types <- c("Filtering control,
                       Filtering control")
-      
-    # filtered_plot_fam <-
-    filtered_plot <-
-    filt_stats_IDs_samples %>% 
-      mutate(Sample = factor(Sample, 
-                             levels = sample_levels)) %>%
-      mutate(Class = ifelse(Class == "class of subphylum of phylum of kingdom of Bacteria", "(...) Bacteria", Class)) %>%
-      mutate(`Curated ID` = ifelse(`Curated ID` == "order of subclass of class of subphylum of phylum of kingdom of Bacteria", "(...) Bacteria", `Curated ID`)) %>% 
-      mutate(Family = ifelse(Family == "family of suborder of order of subclass of class of subphylum of phylum of kingdom of Bacteria", "(...) Bacteria", Family)) %>% 
-      mutate(`Curated ID` = ifelse(`Curated ID` == "genus of subfamily of Trichomycteridae", "(...) Trichomycteridae", `Curated ID`)) %>%
-      mutate(sample_type = case_when(str_detect(Sample, "^br_") ~
-                                       "Filtration\n control",
-                                     str_detect(Sample, "PCR") ~
-                                       "PCR control",
-                                    TRUE ~ "Sample")) %>% 
+     
+     # Curated ID levels
+     id_levels <- filt_stats_IDs_samples$`Curated ID` %>% 
+       unique() %>% 
+       sort()
+       
+     # Plotting
+     filtered_plot <-
+       filt_stats_IDs_samples %>% 
+       mutate(Sample = factor(Sample,
+                              levels = sample_levels)) %>% 
+       mutate(Class = ifelse(Class == "class of subphylum of phylum of kingdom of Bacteria", "(...) Bacteria", Class)) %>%    mutate(`Curated ID` = ifelse(`Curated ID` == "order of subclass of class of subphylum of phylum of kingdom of Bacteria", "(...) Bacteria", `Curated ID`)) %>% 
+       mutate(Family = ifelse(Family == "family of suborder of order of subclass of class of subphylum of phylum of kingdom of Bacteria", "(...) Bacteria", Family)) %>% 
+       mutate(`Curated ID` = ifelse(`Curated ID` == "genus of subfamily of Trichomycteridae", "(...) Trichomycteridae", `Curated ID`)) %>%
+       mutate(sample_type = case_when(str_detect(Sample, "^br_") ~ "Filtration\n control", str_detect(Sample, "PCR") ~ "PCR control", TRUE ~ "Sample")) %>% 
+       mutate(`Curated ID`= factor(`Curated ID`, 
+                                   levels = rev(sort(unique(`Curated ID`))))) %>% 
       ggplot(aes(Sample, 
                  `Curated ID`, 
                  fill = `RRA %`)) +
@@ -406,7 +462,7 @@ Finally, we create a metadata table containing information about each sample (su
       facet_grid(cols = vars(sample_type),
                  rows = c(vars(Class)
                           # vars(Family)),
-                          ),
+                 ),
                  space = "free",
                  scales = "free",
                  drop = TRUE) +
@@ -428,36 +484,540 @@ Finally, we create a metadata table containing information about each sample (su
             axis.text.x = element_text(angle = 45, 
                                        hjust = 0.85,
                                        vjust = 0.85),
-            strip.text.y = element_text(angle = 0))
+            strip.text.y = element_text(angle = 0)) +
+       labs(fill = 'RRA (%)',
+            x = "Sample",
+            y = "Taxa")
 
         ggsave(plot = filtered_plot,
-        # ggsave(plot = filtered_plot_fam,
                filename = paste("/home/gabriel/projetos/LI_paper/results/figures/", "filtered_plot", "-", Sys.Date(), ".pdf", sep = ""), units = "cm",
-               # filename = paste("/home/gabriel/projetos/LI_paper/results/figures/", "filtered_plot_fam", "-", Sys.Date(), ".pdf", sep = ""), units = "cm", 
-               height = 27.5, 
-               # height = 35.5, 
-               width = 30.5,
-               # width = 35.5,
+               # filename = paste("/home/gabriel/projetos/LI_paper/results/figures/", "filtered_plot_fam", "-", Sys.Date(), ".pdf", sep = ""), units = "cm",
+               # height = 27.5, 
+               height = 35.5,
+               # width = 30.5,
+               width = 35.5,
                dpi = 600)
-    ```
+```
 
--   Verifying data loss
+## Preliminary tables
 
-    ```{r}
-    # Calculate total reads before filtering (MCE samples only)
-    raw_n_meta_tbl <- 
-      left_join(raw_results_tbl, metadata_tbl, by = "Sample") %>%
-      filter(Filter %in% "MCE")
-    total_raw <- sum(raw_n_meta_tbl$Abundance)
+-   Creating a table to evaluate the raw data after pipeline processing
 
-    # Calculate total reads after filtering
-    total_filtered <- sum(curated_full_tbl$Abundance)
+```{r}
+raw_resume <- raw_results_tbl %>% 
+  group_by(Sample) %>%
+  mutate("Abd total" = sum(Abundance)) %>%
+  ungroup() %>%
+  group_by(`Curated ID`) %>% 
+  mutate("Abundancia total" = sum(Abundance)) %>% 
+  ungroup %>% 
+  group_by(`Final ID (BLASTn)`) %>% 
+  mutate("Reads totais" = sum(Abundance)) %>% 
+  ungroup() %>% 
+  group_by(Sample) %>%
+  mutate("RRA by sample" = (Abundance/`Abd total`)*100) %>% 
+  reframe(
+    "Total reads" = `Reads totais`,
+    "Total abundance" = `Abundancia total`,
+    "RRA" = sum(`RRA by sample`),
+    "ASVs" = length(unique(`ASV header`)),
+    "OTUs" = length(unique(OTU)),
+    "Reads" = sum(Abundance),
+    "Class" = `Class (BLASTn)`,
+    "Order" = `Order (BLASTn)`,
+    "Family" = `Family (BLASTn)`,
+    "Genus" = `Genus (BLASTn)`,
+    "Curated ID" = `Curated ID`
+  ) %>%
+  unique()
+```
 
-    # Calculate the percentage of removed reads
-    percent_removed <- (total_raw - total_filtered) / total_raw * 100
+### Table S2
 
-    # Display the results
-    cat(paste("Total raw reads (MCE):", total_raw))
-    cat(paste("Total filtered reads (MCE):", total_filtered))
-    cat(paste("Percentage removed:", round(percent_removed, 2), "%"))
-    ```
+**Integrative curation summary of Amplicon Sequence Variants (ASVs) before class- and abundance-based filtering.** The table lists all ASVs with their corresponding taxonomic classifications and read abundances (raw counts) prior to curation. Post-filtering, a refined subset of these ASVs was used for downstream analyses (see Methods).
+
+```{r}
+# Creating a table to use to evaluate the unfiltered data
+
+# 1st Longer table
+dt_all_resume <- curated_full_tbl %>% 
+  group_by(Level, Site, Filter, Year) %>%
+  mutate("Abd total" = sum(Abundance)) %>%
+  ungroup() %>%
+  group_by(`Curated ID`) %>% 
+  mutate("Abundancia total" = sum(Abundance)) %>% 
+  ungroup %>% 
+  group_by(`Final ID (BLASTn)`) %>% 
+  mutate("Reads totais" = sum(Abundance)) %>% 
+  ungroup() %>% 
+  group_by(`Curated ID`, `Final ID (BLASTn)`, `Site`, 
+           `Level`, `Filter`, `Year`) %>%
+  mutate("RRA no periodo" = (Abundance/`Abd total`)*100) %>% 
+  reframe(
+    "Total reads" = `Reads totais`,
+    "Total abundance" = `Abundancia total`,
+    "RRA" = sum(`RRA no periodo`),
+    "ASVs" = length(unique(`ASV header`)),
+    "OTUs" = length(unique(OTU)),
+    "Reads" = sum(Abundance),
+    "Class" = `Class (BLASTn)`,
+    "Order" = `Order (BLASTn)`,
+    "Family" = `Family (BLASTn)`,
+    "Genus" = `Genus (BLASTn)`
+  ) %>%
+  unique() 
+
+# View(dt_all_resume)
+
+# Testing if RRA was calculated right
+dt_all_resume %>%
+  group_by( `Site`, `Level`, `Filter`, `Year`) %>%
+  summarise(total_RRA = sum(RRA, na.rm = TRUE)) %>%
+  ungroup() %>% View()
+
+# Wider table to evaluate unfiltered data
+{wider_dt_all_resume <- dt_all_resume %>% 
+  mutate(RRA = round(RRA,digits = 4)) %>% 
+  ungroup() %>% 
+  unite(Site, Level, Year, Filter, col= "Site_Level_Year") %>% 
+  pivot_wider(id_cols = c("Class","Curated ID", "Final ID (BLASTn)", "Total reads", "Total abundance"),
+              # names_from = Site_Level_Year_Filter,
+              names_from = Site_Level_Year,
+              values_from =  c("RRA","ASVs","OTUs","Reads"),
+              names_glue = "{Site_Level_Year}_{.value}") %>%
+  select(sort(colnames(.))) %>% 
+  relocate("Class","Curated ID","Final ID (BLASTn)","Total reads", "Total abundance",
+           #2020 MCE
+           "P1_High_2020_MCE_Reads",
+           "P1_High_2020_MCE_ASVs",
+           "P1_High_2020_MCE_OTUs",
+           "P1_High_2020_MCE_RRA",
+           "P2_High_2020_MCE_Reads",
+           "P2_High_2020_MCE_ASVs",
+           "P2_High_2020_MCE_OTUs",
+           "P2_High_2020_MCE_RRA",
+           #2021 MCE
+           "P1_Low_2021_MCE_Reads",
+           "P1_Low_2021_MCE_ASVs",
+           "P1_Low_2021_MCE_OTUs",
+           "P1_Low_2021_MCE_RRA",
+           "P2_Low_2021_MCE_Reads",
+           "P2_Low_2021_MCE_ASVs",
+           "P2_Low_2021_MCE_OTUs",
+           "P2_Low_2021_MCE_RRA",
+           "P3_Low_2021_MCE_Reads",
+           "P3_Low_2021_MCE_ASVs",
+           "P3_Low_2021_MCE_OTUs",
+           "P3_Low_2021_MCE_RRA",
+           "P4_Low_2021_MCE_Reads",
+           "P4_Low_2021_MCE_ASVs",
+           "P4_Low_2021_MCE_OTUs",
+           "P4_Low_2021_MCE_RRA",
+           #2022 MCE
+           "P1_High_2022_MCE_Reads",
+           "P1_High_2022_MCE_ASVs",
+           "P1_High_2022_MCE_OTUs",
+           "P1_High_2022_MCE_RRA",
+           "P2_High_2022_MCE_Reads",
+           "P2_High_2022_MCE_ASVs",
+           "P2_High_2022_MCE_OTUs",
+           "P2_High_2022_MCE_RRA",
+           "P3_High_2022_MCE_Reads",
+           "P3_High_2022_MCE_ASVs",
+           "P3_High_2022_MCE_OTUs",
+           "P3_High_2022_MCE_RRA",
+           "P4_High_2022_MCE_Reads",
+           "P4_High_2022_MCE_ASVs",
+           "P4_High_2022_MCE_OTUs",
+           "P4_High_2022_MCE_RRA"
+  )}
+
+View(wider_dt_all_resume)
+
+write.csv(wider_dt_all_resume, paste0(tbl_path, "/wider_dt_all_resume_2025.csv"))
+```
+
+### Table S5
+
+**Table S5. Post-curation and filtering results for retained species.** This table presents the total read abundance per species across all samples (Total abundance), absolute number of reads per species at each sampling point and campaign (Reads), number of ASVs (ASVs) and OTUs (OTUs) assigned to each species, and Relative Read Abundance (RRA). This table reflects the final dataset used for statistical and ecological analyses after integrative curation (see Methods).
+
+```{r}
+# Creating the table with data to be used in analysis
+# Filtered data, only Actinopteri and reads >=100
+
+filt_tbl <- curated_full_tbl %>% 
+  filter(`Class (BLASTn)` %in% "Actinopteri",
+         !`Curated ID` %in% c("Salmo salar")) %>% 
+  group_by(`Curated ID`, Site, Level, Filter, Year) %>% 
+  mutate(Reads = sum(Abundance)) %>% 
+  filter(Reads >= 100) %>% 
+  ungroup()
+
+View(filt_tbl)
+
+# Filtered and grouped data by Samples
+grouped_sampled_filt_tbl <- curated_full_tbl %>% 
+  filter(`Class (BLASTn)` %in% "Actinopteri",
+         !`Curated ID` %in% c("Salmo salar")) %>% 
+  group_by(`Curated ID`, Sample) %>% 
+  mutate(Reads = sum(Abundance)) %>% 
+  filter(Reads >= 100) %>% 
+  ungroup() %>% 
+  # creating total abundance by sample
+  group_by(Sample) %>%
+  mutate("Abd total" = sum(Abundance)) %>%
+  ungroup() %>% 
+  # calculating RRA by Sample
+  group_by(`Curated ID`, Sample) %>%
+  mutate("RRA na amostra" = (Abundance/`Abd total`*100)) %>% 
+  summarize("Site" = dplyr::first(Site),
+          "Year" = dplyr::first(Year),
+          "Expedition" = dplyr::first(Expedition),
+          "Level" = dplyr::first(Level),
+          "Filter" = dplyr::first(Filter),
+          "Class" = dplyr::first(`Class (BLASTn)`),
+          "Order" = dplyr::first(`Order (BLASTn)`),
+          "Family" = dplyr::first(`Family (BLASTn)`),
+          "Genus" = dplyr::first(`Genus (BLASTn)`),
+          "Reads" = sum(Abundance),
+          "Sample abundance" = dplyr::first(`Abd total`),
+          "RRA" = sum(`RRA na amostra`),
+          "ASVs" = length(unique(`ASV header`)),
+          "OTUs" = length(unique(OTU)),
+          ) 
+
+View(grouped_sampled_filt_tbl)
+
+# Is RRA correct?
+grouped_sampled_filt_tbl %>%
+  group_by(Sample) %>%
+  summarise(total_RRA = sum(RRA, na.rm = TRUE)) %>%
+  ungroup()
+
+# Filtered and grouped data by Year, Site and Filter
+
+# A tabela wider precisa dessas informacoes separadamente
+grouped_filt_tbl <- filt_tbl %>%
+  # creating total abundance by period
+  group_by(Level, Site, Filter, Year) %>%
+  mutate("Abd total" = sum(Abundance)) %>%
+  ungroup() %>%
+  # creating total abundance by Curated ID
+  group_by(`Curated ID`) %>% 
+  mutate("Abundancia total" = sum(Abundance)) %>% 
+  ungroup() %>% 
+  # calculating RRA by period
+  group_by(`Curated ID`, Site, Level, Filter, Year) %>%
+  mutate("RRA no periodo" = (Abundance/`Abd total`)*100) %>% 
+  reframe("Curated ID" = `Curated ID`,
+          "Class" = `Class (BLASTn)`,
+          "Order" = `Order (BLASTn)`,
+          "Family" = `Family (BLASTn)`,
+          "Genus" = `Genus (BLASTn)`,
+          "Reads" = sum(Abundance),
+          "Period abundance" = `Abd total`,
+          "Total abundance" = `Abundancia total`, 
+          "RRA" = sum(`RRA no periodo`),
+          "ASVs" = length(unique(`ASV header`)),
+          "OTUs" = length(unique(OTU))) %>% 
+  unique()
+
+View(grouped_filt_tbl)
+
+# Is RRA correct?
+grouped_filt_tbl %>%
+  group_by(Site, Level, Filter, Year) %>%
+  summarise(total_RRA = sum(RRA, na.rm = TRUE)) %>%
+  ungroup()
+
+# Tabela wider com os dados filtrados
+  wider_filt_tbl <- grouped_filt_tbl %>% 
+  mutate(RRA = round(RRA,digits = 4)) %>% 
+  ungroup() %>% 
+  unite(Site, Level, Year, col= "Site_Level_Year") %>% 
+  pivot_wider(id_cols = c("Curated ID", "Total abundance"),
+              names_from = Site_Level_Year,
+              values_from =  c("RRA","ASVs","OTUs","Reads"),
+              names_glue = "{Site_Level_Year}_{.value}") %>%
+  select(sort(colnames(.))) %>% 
+  relocate("Curated ID",
+           "Total abundance",
+           #2020 MCE
+           "P1_High_2020_Reads",
+           "P1_High_2020_ASVs",
+           "P1_High_2020_OTUs",
+           "P1_High_2020_RRA",
+           "P2_High_2020_Reads",
+           "P2_High_2020_ASVs",
+           "P2_High_2020_OTUs",
+           "P2_High_2020_RRA",
+           #2021 MCE
+           "P1_Low_2021_Reads",
+           "P1_Low_2021_ASVs",
+           "P1_Low_2021_OTUs",
+           "P1_Low_2021_RRA",
+           "P2_Low_2021_Reads",
+           "P2_Low_2021_ASVs",
+           "P2_Low_2021_OTUs",
+           "P2_Low_2021_RRA",
+           "P3_Low_2021_Reads",
+           "P3_Low_2021_ASVs",
+           "P3_Low_2021_OTUs",
+           "P3_Low_2021_RRA",
+           "P4_Low_2021_Reads",
+           "P4_Low_2021_ASVs",
+           "P4_Low_2021_OTUs",
+           "P4_Low_2021_RRA",
+           #2022 MCE
+           "P3_High_2022_Reads",
+           "P3_High_2022_ASVs",
+           "P3_High_2022_OTUs",
+           "P3_High_2022_RRA",
+           "P4_High_2022_Reads",
+           "P4_High_2022_ASVs",
+           "P4_High_2022_OTUs",
+           "P4_High_2022_RRA")
+
+View(wider_filt_tbl)
+
+write.csv(wider_filt_tbl, paste0(tbl_path, "/wider_dt_filt_2025.csv"))
+```
+
+## Initial data assesment
+
+### No Reads by sample after sequencing
+
+```{r}
+options(scipen = 999)
+
+seq_read_counts <- read_excel("/home/gabriel/projetos/peixes-eDNA/analises/dez_23/runs_2_4_5_EM156/results/LI-reads_and_seqs_counts2024-01-08.xlsx") %>% 
+  tibble() %>%
+  # only MCE samples
+  filter(Sample %in% c("L1_nov_dec_20_mi", "L2_nov20",
+                       "L2_dez20", "L1_out21", "L2_out21",
+                       "L3_out21", "L4_out21", "L1_nov21",
+                       "L2_nov21", "L3_nov21", "L1_jan22",
+                       "L2_jan22", "L3_jan22", "L4_jan22",
+                       "br_jan_22","EM113_NEGPCR1",
+                       "EM135c4c5_NEGPCR1",
+                       "EM135c4c5_NEGPCR2",
+                       "EM149_NEGPCR1","EM149_NEGPCR2",
+                       "EM156_NegPCR1", "S724_NEGPCR1")) %>% 
+  summarise("Total reads" = sum(`Raw reads (pairs)`))
+```
+
+### No reads after post-pipeline and filtering
+
+-   This section computes the total read count per sample that remained after data processing and filtering. This final, high-quality dataset was used for all downstream analyses. The filtering criteria included: exclusion of NA values, restriction to the Actinopteri group, and a minimum threshold of 100 reads per curated taxonomic ID
+
+```{r}
+filt_raw_reads <- grouped_sampled_filt_tbl %>%
+  # group_by(`Curated ID`) %>% # grouped_filt_tbl
+  group_by(Sample) %>% # grouped_filt_tbl
+  summarise(total_abd_filt = sum(Reads))
+
+View(filt_raw_reads)
+
+sum(filt_raw_reads$total_abd_filt)
+```
+
+### IDs metrics pre-pipeline and filtering
+
+```{r}
+# Total reads in ASVs, OTUs, Orders, Families, Genus, Species and Nspecies for raw data
+
+raw_stats <- raw_resume %>%
+  group_by(Class) %>% 
+  reframe(
+    "Total reads" = sum(Reads),
+    "ASVs" = sum(ASVs),
+    "OTUs" = sum(OTUs),
+    "Orders" = length(unique(Order)),
+    "Families" = length(unique(Family)),
+    "Genera" = length(unique(Genus)),
+    "Species" = length(unique(`Curated ID`[grepl("^[A-Za-z]+\\s[A-Za-z]+$", `Curated ID`) & !grepl("sp\\.", `Curated ID`)])),
+    "Nspecies" = length(unique(`Curated ID`)) - Species
+  ) %>%
+  unique()
+
+View(raw_stats)
+```
+
+### IDs metrics post-pipeline and filtering
+
+```{r}
+grouped_filt_stats <- grouped_filt_tbl %>% #dependendo da tabela, resultados diferentes
+  group_by(Class) %>% # Grouped by Class
+  # group_by(Order) %>% # Grouped by Order
+  # group_by(Family) %>% # Grouped by Family
+  # group_by(Genus) %>% # Grouped by Genus
+  # group_by(`Curated ID`) %>% # Grouped by Species
+  reframe(
+    "Total reads" = sum(Reads),
+    "ASVs" = sum(ASVs),
+    "OTUs" = sum(OTUs),
+    "Orders" = length(unique(`Order`)),
+    "Families" = length(unique(`Family`)),
+    "Genera" = length(unique(`Genus`)),
+    "Species" = length(unique(`Curated ID`[grepl("^[A-Za-z]+\\s[A-Za-z]+$", `Curated ID`) & !grepl("sp\\.", `Curated ID`)])),
+    "Nspecies" = length(unique(`Curated ID`)) - Species
+  ) %>%
+  unique()
+```
+
+### Table S6
+
+```{r}
+# Mean and SD of alpha-diversity
+grouped_filt_site <- grouped_filt_tbl %>% #dependendo da tabela, resultados diferentes
+  group_by(Level, Site) %>% 
+  mutate(
+    "Diversity" = length(unique(`Curated ID`))) %>%
+  ungroup() %>% 
+  select(Level, Site, Diversity) %>% 
+  unique() %>% 
+  group_by(Level) %>% 
+  mutate(
+    "Mean" = mean(Diversity),
+    "SD" = sd(Diversity))
+```
+
+## Exploratory data assesment
+
+```{r}
+# Reads through data filtering 
+raw_results_reads <- raw_results_tbl %>% group_by(Sample) %>% 
+  summarise(`Raw reads` = sum(Abundance))
+
+pre_filt_reads <- pre_filt_tbl %>% group_by(Sample) 
+
+filt_reads <- filt_tbl %>% group_by(Sample) %>% 
+  summarise(`Filt reads` = sum(Abundance))
+
+evol_reads <- raw_results_reads %>%
+  left_join(pre_filt_reads, by = "Sample") %>%
+  left_join(filt_reads, by = "Sample") %>% 
+  group_by(`Raw reads`, `Filt reads`) %>% 
+  select(Sample, `Raw reads`, `Filt reads`) %>% 
+  unique()
+
+View(evol_reads)
+
+# ASVs that weren't identified at species Level (genus + epithet)
+spp_level <- grouped_filt_tbl %>%
+  reframe("Species" = unique(`Curated ID`[grepl("^[A-Za-z]+\\s[A-Za-z]+$", `Curated ID`) & 
+                                            !grepl("sp\\.", `Curated ID`)]))
+nspp_level <- grouped_filt_tbl %>% 
+  reframe("Nspecies" = setdiff(unique(`Curated ID`), spp_level$Species))
+    
+View(nspp_level) 
+
+# Informations grouped by taxa detected 
+id_level <- grouped_filt_tbl %>%
+  group_by(`Curated ID`) %>%
+    reframe("Order" = Order, "Family" = Family, "Genus" = Genus,
+      "Curated identification" = `Curated ID`,
+      "Reads" = sum(Reads), 
+      "ASVs" = sum(ASVs),
+      "OTUs" = sum(OTUs),
+    ) %>% 
+    unique() %>% 
+    select("Order", "Family", "Genus",
+           # "Maior hit do BLASTn",
+           "Curated identification",
+           "Reads", "ASVs","OTUs") 
+
+View(id_level)
+
+# Arquivo para artigo
+write.xlsx(id_level, paste0(tbl_path, "/id_level_tbl.xlsx"))
+
+# Informations grouped  by Class
+class_Level <- grouped_filt_tbl %>%
+  reframe(
+    "Total reads" = sum(Reads), 
+    "ASVs" = sum(ASVs),
+    "OTUs" = sum(OTUs),
+    "Orders" = length(unique(Order)),
+    "Families" = length(unique(Family)),
+    "Genera" = length(unique(Genus)),
+    "Identifications" = length(unique(`Curated ID`)),
+    "Species" = length(unique(`Curated ID`[grepl("^[A-Za-z]+\\s[A-Za-z]+$", `Curated ID`) & 
+                                               !grepl("sp\\.", `Curated ID`)])), # IDs a Level de spp
+    "Nspecies" = length(unique(`Curated ID`)) - Species) # IDs em outros niveis taxonomicos
+  
+View(class_Level)
+  
+# Informations grouped by Order
+order_level <- grouped_filt_tbl %>%
+  filter(Filter %in% "MCE") %>%
+  group_by(Order) %>%
+  reframe(
+    # "Curated ID" = `Curated ID`,
+    "Order" = Order,
+    "Total reads" = sum(Reads), # dt_all_resume && # dt_filt
+    "ASVs" = sum(ASVs),
+    "OTUs" = sum(OTUs),
+    "Families" = length(unique(Family)),
+    "Genera" = length(unique(Genus)),
+    "Identifications" = length(unique(`Curated ID`)),
+    "Species" = length(unique(`Curated ID`[grepl("^[A-Za-z]+\\s[A-Za-z]+$", `Curated ID`) & !grepl("sp\\.", `Curated ID`)])), # a nivel de spp
+    "Nspecies" = length(unique(`Curated ID`)) - Species # em outros niveis alem de spp
+    ) %>% 
+  unique()
+  
+View(order_level)
+
+# Arquivo para artigo
+# write.xlsx(order_level, paste0(tbl_path, "/order_level_tbl.xlsx"))
+write.xlsx(order_level, paste0(tbl_path, "/order_level_tbl.xlsx"))
+
+# Informations grouped by Family
+family_level <- grouped_filt_tbl %>%
+  filter(Filter %in% "MCE") %>%
+  group_by(Family) %>%
+  reframe(
+    "Order" = Order,
+    "Total reads" = sum(Reads), 
+    "ASVs" = sum(ASVs),
+    "OTUs" = sum(OTUs),
+    "Genera" = length(unique(Genus)),
+    "Identifications" = length(unique(`Curated ID`)),
+    "Species" = length(unique(`Curated ID`[grepl("^[A-Za-z]+\\s[A-Za-z]+$", `Curated ID`) & !grepl("sp\\.", `Curated ID`)])), # a nivel de spp
+    "Nspecies" = length(unique(`Curated ID`)) - Species # em outros niveis alem de spp
+    ) %>% 
+  unique()
+  
+View(family_level)
+
+# Informations grouped by Sample
+grouped_by_Sample <- filt_tbl %>%
+ # filter(Expedition %in% "Novembro 2021") %>%
+ select(Sample, Filter, Reads, Site) %>%
+ group_by(Filter,
+          Sample
+          ) %>%
+ mutate("Total reads" = sum(Reads)) %>%
+ reframe(Filter,
+         # Sample,
+         Site,
+         `Total reads`) %>%
+ unique()
+
+# View(grouped_by_Sample)
+
+# Especies encontradas em apenas uma amostra
+Counts <- grouped_filt_tbl %>% 
+  group_by(`Curated ID`) %>%
+  # group_by(`Curated ID`, Filter) %>%
+  reframe(count = n_distinct(Sample),
+            Filter, Sample) %>% 
+  unique()
+
+unique_counts <- 
+  Counts %>% filter(count == 1) %>% 
+  reframe(`Curated ID`,
+          Sample)
+
+View(unique_counts)
+```

@@ -660,9 +660,6 @@ grouped_filt_site <- grouped_filt_tbl %>% #dependendo da tabela, resultados dife
   mutate(
     "Mean" = mean(Diversity),
     "SD" = sd(Diversity))
-
-
-
 ```
 
 ## Exploratory tables
@@ -1036,8 +1033,8 @@ ggsave(plot = fish_fam_all,
         ) +
       labs(
         fill = 'RRA (%)',
-        x = "Sampling site",
-        y = "Species"
+        x = "Sample site",
+        y = "Taxa"
         )
     
     tile_all
