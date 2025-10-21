@@ -1,0 +1,142 @@
+---
+title: "LI Neighbor-joining tree"
+author: "Gabriel Mendes"
+format: html
+editor: visual
+editor_options: 
+  chunk_output_type: console
+---
+
+#### Libraries
+
+```{r}
+library(Biostrings)
+library(DECIPHER)
+library(ShortRead)
+library(stringr)
+library(tidyverse)
+library(ggtree)
+library(dplyr)
+library(ape)
+```
+
+#### Project folders
+
+-   Criação dos diretórios onde a análise será realizada e onde os resultados serão salvos.
+
+    ```{r}
+    # Define standard output/input folder system and verify or create directories as needed
+    {
+      prjct_path <- "/home/gabriel/projetos/LI_paper"
+      tree_path <- paste0(results_path, "/tree")
+      paths <- c(tree_path)
+    }
+
+    for (dir in paths) {
+      if (dir.exists(dir)) {
+    print(paste("The directory", dir, "already exists!"))
+      } else {
+    print(paste("Making", dir, "!" ))
+    dir.create(dir) 
+      }
+    }
+    ```
+
+#### Input tables
+
+-   Tabela que recebe as sequências das ASVs dos dados pré-filtrados pós-pipeline.
+
+    ```{r}
+    raw_ASVs <- read.csv("/home/gabriel/projetos/LI_paper/results/tables/curated_full_tbl-2025-10-14.csv", 
+                          sep = ",", 
+                          check.names = FALSE) %>%
+      as_tibble() %>% 
+      filter(`Class (BLASTn)` == "Actinopteri")
+             
+    ```
+
+-   Tabela que recebe as sequências das ASVs dos dados filtrados pós-pipeline com sequências curadas
+
+    ```{r}
+    # Versao 09 de outubro de 2025
+    filt_n_curated_ASVs <- read.csv("/home/gabriel/projetos/LI_paper/results/tables/curated_full_tbl-2025-10-14.csv", 
+                          sep = ",", 
+                          check.names = FALSE) %>%
+      as_tibble() %>% 
+      filter(`Class (BLASTn)` == "Actinopteri",
+             `Curated ID` %in% c("Coptodon rendalli", "Hoplias sp.", "Psalidodon sp.", "Moenkhausia costae", "Hemigrammus marginatus", "Schizodon knerii", "Astyanax lacustris", "Oreochromis niloticus", "Rhamdia quelen", "Leporinus sp.", "Serrasalmus brandtii", "Poecilia reticulata", "Pimelodus sp.", "Trichomycterus sp.", "Myleus micans"))
+    ```
+
+-   Criação do objeto com apenas as sequências das ASVs e as informações que irão estar nos cabeçalhos.
+
+    ```{r}
+    # raw ids
+    fish_ID_tbl_fasta <- raw_ASVs %>% 
+      mutate(`Final ID (BLASTn)` = gsub(" ", "_", `Final ID (BLASTn)`)) %>%
+      unite(header, `ASV header`, `Final ID (BLASTn)`, sep = "_",
+        `BLASTn pseudo-score`) %>%
+      reframe(header, `ASV (Sequence)`) %>% 
+      unique()
+
+    # curated ids
+    fish_ID_tbl_fasta <- filt_n_curated_ASVs %>% 
+      mutate(`Final ID (BLASTn)` = gsub(" ", "_", `Final ID (BLASTn)`)) %>%
+      mutate(`Curated ID` = gsub(" ", "_", `Curated ID`)) %>%
+      unite(header, `ASV header`, `Final ID (BLASTn)`, sep = "_",
+        `BLASTn pseudo-score`, `Site`, `Curated ID`) %>%
+      reframe(header, `ASV (Sequence)`) %>% 
+      unique()
+    ```
+
+#### Alinhamento
+
+-   Criando o arquivo FASTA
+
+    ```{r}
+    ASVs_all <- c(rbind(fish_ID_tbl_fasta$header, 
+                    fish_ID_tbl_fasta$`ASV (Sequence)`))
+
+    write(ASVs_all, paste0(tree_path, "/ASVs_all", "-",
+                       Sys.Date(), ".fas", sep = ""))
+    ```
+
+-   Realizando o alinhamento
+
+    ```{r}
+    # Criando os objetos Biostring
+    seqs_ASVs <- readDNAStringSet(paste0(tree_path, "/ASVs_all-2025-10-14.fas"))
+
+    # Alinhando sequencias das ASVs
+    algn_ASVs <- seqs_ASVs %>%
+      DECIPHER::RemoveGaps() %>%
+      OrientNucleotides() %>% 
+      AlignSeqs(iterations = 100,
+                refinements = 100,
+                verbose = TRUE)
+
+    BrowseSeqs(algn_ASVs)
+    ```
+
+#### Árvore
+
+-   Cálculo da matriz de distância
+
+    ```{r}
+    ASVs_mtrx <- DistanceMatrix(myXStringSet = algn_ASVs,
+                                includeTerminalGaps = FALSE,
+                                correction = "Jukes-Cantor",
+                                processors = 20,
+                                verbose = TRUE)
+    ```
+
+-   Construção da árvore
+
+    ```{r}
+    LI_tree <- njs(ASVs_mtrx)
+
+    write.tree(phy = LI_tree,
+               digits = 5,
+               file = paste0(tree_path, "/LI_tree", "-",
+                             Sys.Date(), ".nwk", sep = ""))
+      
+    ```

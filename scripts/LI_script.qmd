@@ -22,20 +22,18 @@ This pipeline integrates public tools available for metabarcoding analyses. To s
     # load(file = "/home/gabriel/projetos/LI_paper/Environments/...RData")
 
     # Loading libraries ----
-
-    { library("tidyverse")
-      library("Biostrings")
-      library("DECIPHER")
-      library("phyloseq")
-      library("vegan")
-      library("readxl")
-      library("ggpubr")
-      library("ggplot2")
-      library("ggsignif")
-      library("ggrepel")
-      library("openxlsx")
-      library("colorspace")
-      }
+    library("tidyverse")
+    library("Biostrings")
+    library("DECIPHER")
+    library("phyloseq")
+    library("vegan")
+    library("readxl")
+    library("ggpubr")
+    library("ggplot2")
+    library("ggsignif")
+    library("ggrepel")
+    library("openxlsx")
+    library("colorspace")
     ```
 
 -   Create project folders
@@ -87,8 +85,6 @@ This pipeline integrates public tools available for metabarcoding analyses. To s
              "ASV header") %>%
       mutate(Sample = str_replace(Sample, "__", "_"))
     ```
-
-<!-- -->
 
 -   Selecting colunms from curated identifications table
 
@@ -229,7 +225,7 @@ Finally, we create a metadata table containing information about each sample (su
 
     ```{r}
     # Update families for specific genera (february 10th 2025)
-    raw_results_full_tbl <- 
+    raw_results_full_tbl <-
       raw_results_full_tbl %>% 
       mutate(`Family (BLASTn)` = 
                ifelse(`Genus (BLASTn)` %in% c("Psalidodon",
@@ -243,14 +239,6 @@ Finally, we create a metadata table containing information about each sample (su
                ifelse(`Genus (BLASTn)` %in% "Piabina",
                       "Stevardiidae",
                       `Family (BLASTn)`))
-
-    # Group Hoplias species (february 25th 2025)
-    raw_results_full_tbl <- raw_results_full_tbl %>%
-      mutate(`Curated ID` =
-               ifelse(`Curated ID` %in% c("Hoplias malabaricus",
-                                          "Hoplias intermedius"),
-                      "Hoplias sp.", 
-                      `Curated ID`))
     ```
 
 ### Data filtering
@@ -259,11 +247,11 @@ Finally, we create a metadata table containing information about each sample (su
 
     ```{r}
     curated_full_tbl <-
-    curated_full_tbl_2 <-
       raw_results_full_tbl %>%
       filter(Filter == "MCE",
              `Primer expected length` != "out of range",
              !is.na(`Curated ID`),
+             `Curated ID` != "NA",
              !(`Class (BLASTn)` %in% c("Mammalia", "Aves") &
                  `BLASTn pseudo-score` < 98),
              !Sample %in% c("EM113_NEGPCR1", "EM135c4c5_NEGPCR1",
@@ -272,53 +260,60 @@ Finally, we create a metadata table containing information about each sample (su
                             "S724_NEGPCR1", "br_jan_22", 
                             "br_nov21"),
              `Obs. Curadoria` != "Possible contamination")
+
+    write_csv(curated_full_tbl, 
+          paste0(tbl_path, "/curated_full_tbl", "-",
+                 Sys.Date(), ".csv", sep = ""))
     ```
 
 #### Analysis of removed data
 
-```{r}
-# All MCE ASVs filtered from dataset 
-filt_asvs <- 
-  setdiff(raw_results_full_tbl,
-          curated_full_tbl_2) %>%
-  filter(!(Filter) %in% "Sterivex") %>% 
-  mutate(`Curated ID` = ifelse(`Curated ID` == "NA", NA,
+-   Overview of informations about the data removed from the main dataset: reads outside the range, NA IDs, possible contaminations, non-Actinopteri IDs, etc.
+
+    ```{r}
+    # All MCE ASVs filtered from dataset 
+    filt_asvs <- 
+      setdiff(raw_results_full_tbl,
+          curated_full_tbl) %>%
+      as_tibble() %>% 
+      filter(!(Filter) %in% "Sterivex") %>%
+      mutate(`Curated ID` = ifelse(`Curated ID` == "NA", NA,
                                `Curated ID`))
 
-# Infos about classes of ASVs filtered
-filt_stats_class <- 
-  filt_asvs %>%
-  group_by(`Class (BLASTn)`) %>%
-  reframe("Total reads" = sum(Abundance),
+    # Infos about classes of ASVs filtered
+    filt_stats_class <- 
+      filt_asvs %>%
+      group_by(`Class (BLASTn)`) %>%
+      reframe("Total reads" = sum(Abundance),
           "ASVs" = length(unique(`ASV (Sequence)`)),
           "OTUs" = length(unique(OTU)),
           "Families" = length(unique(`Family (BLASTn)`)))
 
-# Infos about fish ASVs filtered
-filt_stats_fish <- 
-  filt_asvs %>%
-  filter(`Class (BLASTn)` == "Actinopteri") %>% 
-  group_by(`Curated ID`) %>%
-  reframe("Total reads" = sum(Abundance),
+    # Infos about fish ASVs filtered
+    filt_stats_fish <- 
+      filt_asvs %>%
+      filter(`Class (BLASTn)` == "Actinopteri") %>% 
+      group_by(`Curated ID`) %>%
+      reframe("Total reads" = sum(Abundance),
           "ASVs" = length(unique(`ASV (Sequence)`)),
           "OTUs" = length(unique(OTU)),
           "Families" = length(unique(`Family (BLASTn)`)))
 
-# Infos about samples filtered from dataset
-filt_stats_sample <-
-  filt_asvs %>% 
-  group_by(Sample) %>% 
-  reframe("Total reads" = sum(Abundance),
+    # Infos about samples filtered from dataset
+    filt_stats_sample <-
+      filt_asvs %>% 
+      group_by(Sample) %>% 
+      reframe("Total reads" = sum(Abundance),
           "ASVs" = length(unique(`ASV (Sequence)`)),
           "OTUs" = length(unique(OTU)),
           "Families" = length(unique(`Family (BLASTn)`)))
 
-# Infos about Curated IDs filtered from dataset
-options(scipen = 999)
-filt_stats_IDs_all <-
-  filt_asvs %>%
-  group_by(`Curated ID`, `Final ID (BLASTn)`) %>% 
-  summarise("Family" =`Family (BLASTn)`,
+    # Infos about Curated IDs filtered from dataset
+    options(scipen = 999)
+    filt_stats_IDs_all <-
+      filt_asvs %>%
+      group_by(`Curated ID`, `Final ID (BLASTn)`) %>% 
+      summarise("Family" =`Family (BLASTn)`,
             "Reads" = sum(Abundance),
             "Class" = paste(unique(`Class (BLASTn)`), 
                             collapse = ", "),
@@ -340,17 +335,17 @@ filt_stats_IDs_all <-
               if (any(str_detect(Sample, "^br_")))
                 "Extraction control" )),
               collapse = ", ")) %>%
-  ungroup() %>% 
-  select(`Curated ID`, 
+      ungroup() %>% 
+      select(`Curated ID`, 
          `Final ID (BLASTn)`,
          Reads,
          Samples,
          Reasons,
          Class,
          Family) %>% 
-  arrange(desc(Reads)) %>% 
-  unique()
-```
+      arrange(desc(Reads)) %>% 
+      unique()
+    ```
 
 #### Table S4
 
@@ -359,51 +354,55 @@ filt_stats_IDs_all <-
 ```{r}
 # Infos about IDs and samples
 
-    # Retriving total sample abundances
-    sample_abd <- 
-      raw_results_full_tbl %>%
-      filter(!(Filter) %in% "Sterivex") %>% 
-      group_by(Sample) %>%
-      summarize(total_abundance = sum(Abundance, na.rm = TRUE))
+# Retriving total sample abundances
+sample_abd <-
+  raw_results_full_tbl %>%
+  filter(!(Filter) %in% "Sterivex") %>%
+  group_by(Sample) %>%
+  summarize(total_abundance = sum(Abundance, na.rm = TRUE))
 
-    filt_stats_IDs_samples <-
-      filt_asvs %>%
-      group_by(`Curated ID`, `Final ID (BLASTn)`, Sample) %>% 
-      summarise("Family" =`Family (BLASTn)`,
-              "Reads" = sum(Abundance),
-              "Class" = paste(unique(`Class (BLASTn)`),
-                              collapse = ", "),
-              "Reasons" = paste(unique(c(
-                if (any(is.na(`Curated ID`))) "ID is NA",
-                if (any(`Obs. Curadoria` %in%
-                        "Possible contamination")) 
-                  "Contamination",
-                if (any(`Primer expected length` %in%
-                        "out of range"))
-                  "Out of range",
-                if (any((`Class (BLASTn)` != "Actinopteri" &
-                     !is.na(`Class (BLASTn)`))))
-                  paste("Class:", `Class (BLASTn)`),
-                if (any(str_detect(Sample, "PCR")))
-                  "PCR control",
-                if (any(str_detect(Sample, "^br_")))
-                  "Extraction control" )), 
-                collapse = ", ")) %>%
-      ungroup() %>% 
-      left_join(sample_abd, by = "Sample") %>% 
-      mutate("RRA %" = round(Reads / 
-                               total_abundance * 100,
-                             digits = 3)) %>% 
-      select(`Curated ID`, 
-             `Final ID (BLASTn)`,
-             Reads,
-             `RRA %`, 
-             Sample,
-             Reasons,
-             Class,
-             Family) %>% 
-      arrange(desc(`RRA %`)) %>% 
-      unique()
+filt_stats_IDs_samples <-
+  filt_asvs %>%
+  group_by(`Curated ID`, `Final ID (BLASTn)`, Sample) %>%
+  summarise("Family" =`Family (BLASTn)`,
+            "Reads" = sum(Abundance),
+            "Class" = paste(unique(`Class (BLASTn)`),
+                            collapse = ", "),
+            "Reasons" = paste(unique(c(
+              if (any(is.na(`Curated ID`))) "ID is NA",
+              if (any(`Obs. Curadoria` %in%
+                      "Possible contamination"))
+                "Contamination",
+              if (any(`Primer expected length` %in%
+                      "out of range"))
+                "Out of range",
+              if (any((`Class (BLASTn)` != "Actinopteri" &
+                       !is.na(`Class (BLASTn)`))))
+                paste("Class:", `Class (BLASTn)`),
+              if (any(str_detect(Sample, "PCR")))
+                "PCR control",
+              if (any(str_detect(Sample, "^br_")))
+                "Extraction control" )),
+              collapse = ", ")) %>%
+  ungroup() %>%
+  left_join(sample_abd, by = "Sample") %>%
+  mutate("RRA %" = round(Reads / total_abundance * 100,
+                         digits = 3)) %>%
+  select(`Curated ID`,
+         `Final ID (BLASTn)`,
+         Reads,
+         `RRA %`,
+         Sample,
+         Reasons,
+         Class,
+         Family) %>%
+  arrange(desc(`RRA %`)) %>%
+  unique()
+    
+# Exporting table for the paper
+write.csv(filt_stats_IDs_samples, 
+          paste0(tbl_path, "/filt_stats_summary", "-",
+                 Sys.Date(), ".csv", sep = ""))
 ```
 
 #### Figure S2
@@ -412,91 +411,91 @@ filt_stats_IDs_all <-
 
 ```{r}
 # Sample levels for plot 
-    sample_levels <- c("br_nov21", "br_jan_22",  
-                       "EM135c4c5_NEGPCR1", 
-                       "EM135c4c5_NEGPCR2", 
-                       "EM149_NEGPCR1", 
-                       "EM149_NEGPCR2", 
-                       "EM113_NEGPCR1",
-                       "EM156_NegPCR1",
-                       "S724_NEGPCR1",
-                       "L1_nov_dec_20_mi",
-                       "L2_nov20",
-                       "L2_dez20",
-                       "L1_out21",
-                       "L2_out21",
-                       "L3_out21",
-                       "L1_nov21",
-                       "L2_nov21",
-                       "L3_nov21",
-                       "L4_nov21",
-                       "L1_jan22",
-                       "L2_jan22",
-                       "L3_jan22",
-                       "L4_jan22")
-    
-     # Sample types for plot
-     sample_types <- c("Filtering control,
-                      Filtering control")
-     
-     # Curated ID levels
-     id_levels <- filt_stats_IDs_samples$`Curated ID` %>% 
-       unique() %>% 
-       sort()
-       
-     # Plotting
-     filtered_plot <-
-       filt_stats_IDs_samples %>% 
-       mutate(Sample = factor(Sample,
-                              levels = sample_levels)) %>% 
-       mutate(Class = ifelse(Class == "class of subphylum of phylum of kingdom of Bacteria", "(...) Bacteria", Class)) %>%    mutate(`Curated ID` = ifelse(`Curated ID` == "order of subclass of class of subphylum of phylum of kingdom of Bacteria", "(...) Bacteria", `Curated ID`)) %>% 
-       mutate(Family = ifelse(Family == "family of suborder of order of subclass of class of subphylum of phylum of kingdom of Bacteria", "(...) Bacteria", Family)) %>% 
-       mutate(`Curated ID` = ifelse(`Curated ID` == "genus of subfamily of Trichomycteridae", "(...) Trichomycteridae", `Curated ID`)) %>%
-       mutate(sample_type = case_when(str_detect(Sample, "^br_") ~ "Filtration\n control", str_detect(Sample, "PCR") ~ "PCR control", TRUE ~ "Sample")) %>% 
-       mutate(`Curated ID`= factor(`Curated ID`, 
-                                   levels = rev(sort(unique(`Curated ID`))))) %>% 
-      ggplot(aes(Sample, 
-                 `Curated ID`, 
-                 fill = `RRA %`)) +
-      geom_tile() +
-      facet_grid(cols = vars(sample_type),
-                 rows = c(vars(Class)
-                          # vars(Family)),
-                 ),
-                 space = "free",
-                 scales = "free",
-                 drop = TRUE) +
-      geom_text(aes(label = sprintf("%.3f%%", `RRA %`)),
-                    color = "black",
-                    size = 2) +
-      scale_fill_continuous_sequential("BluGrn") +
-      theme(panel.grid.major = element_line(
-              color = "grey", linewidth = 0.2, linetype = 1),
-            strip.background = element_rect(fill = "#e4e4e4"),
-            strip.text = element_text(
-              size = 8.5, 
-              face = "bold", 
-              color = "black"),
-            axis.text.y = element_text(size = 8.5, 
-                                       face = "italic"),
-            axis.title = element_text(size = 10, 
-                                      face = "bold"),
-            axis.text.x = element_text(angle = 45, 
-                                       hjust = 0.85,
-                                       vjust = 0.85),
-            strip.text.y = element_text(angle = 0)) +
-       labs(fill = 'RRA (%)',
-            x = "Sample",
-            y = "Taxa")
+sample_levels <- c("br_nov21", "br_jan_22",
+                   "EM135c4c5_NEGPCR1",
+                   "EM135c4c5_NEGPCR2",
+                   "EM149_NEGPCR1",
+                   "EM149_NEGPCR2",
+                   "EM113_NEGPCR1",
+                   "EM156_NegPCR1",
+                   "S724_NEGPCR1",
+                   "L1_nov_dec_20_mi",
+                   "L2_nov20",
+                   "L2_dez20",
+                   "L1_out21",
+                   "L2_out21",
+                   "L3_out21",
+                   "L1_nov21",
+                   "L2_nov21",
+                   "L3_nov21",
+                   "L4_nov21",
+                   "L1_jan22",
+                   "L2_jan22",
+                   "L3_jan22",
+                   "L4_jan22")
 
-        ggsave(plot = filtered_plot,
-               filename = paste("/home/gabriel/projetos/LI_paper/results/figures/", "filtered_plot", "-", Sys.Date(), ".pdf", sep = ""), units = "cm",
-               # filename = paste("/home/gabriel/projetos/LI_paper/results/figures/", "filtered_plot_fam", "-", Sys.Date(), ".pdf", sep = ""), units = "cm",
-               # height = 27.5, 
-               height = 35.5,
-               # width = 30.5,
-               width = 35.5,
-               dpi = 600)
+# Sample types for plot
+sample_types <- c("Filtering control,
+                  Filtering control")
+
+# Curated ID levels
+id_levels <- filt_stats_IDs_samples$`Curated ID` %>%
+  unique() %>%
+  sort()
+
+# Plotting
+filtered_plot <-
+  filt_stats_IDs_samples %>%
+  mutate(Sample = factor(Sample, levels = sample_levels)) %>%
+  mutate(Class = ifelse(Class == "class of subphylum of phylum of kingdom of Bacteria", "(...) Bacteria", Class)) %>%    
+  mutate(`Curated ID` = ifelse(`Curated ID` == "order of subclass of class of subphylum of phylum of kingdom of Bacteria", "(...) Bacteria", `Curated ID`)) %>%
+  mutate(Family = ifelse(Family == "family of suborder of order of subclass of class of subphylum of phylum of kingdom of Bacteria", "(...) Bacteria", Family)) %>%
+  mutate(`Curated ID` = ifelse(`Curated ID` == "genus of subfamily of Trichomycteridae", "(...) Trichomycteridae", `Curated ID`)) %>%
+  mutate(sample_type = case_when(str_detect(Sample, "^br_") ~ "Filtration\n control", str_detect(Sample, "PCR") ~ "PCR control", TRUE ~ "Sample")) %>%
+  mutate(`Curated ID`= factor(`Curated ID`,
+                              levels = rev(sort(unique(`Curated ID`))))) %>%
+  ggplot(aes(Sample,
+             `Curated ID`,
+             fill = `RRA %`)) +
+  geom_tile() +
+  facet_grid(cols = vars(sample_type),
+             rows = c(vars(Class)
+                      # vars(Family)),
+                      ),
+             space = "free",
+             scales = "free",
+             drop = TRUE) +
+  geom_text(aes(label = sprintf("%.3f%%", `RRA %`)),
+            color = "black",
+            size = 2) +
+  scale_fill_continuous_sequential("BluGrn") +
+  theme(panel.grid.major = element_line(
+    color = "grey", linewidth = 0.2, linetype = 1),
+    strip.background = element_rect(fill = "#e4e4e4"),
+    strip.text = element_text(size = 8.5,
+                              face = "bold",
+                              color = "black"),
+    axis.text.y = element_text(size = 8.5,
+                               face = "italic"),
+    axis.title = element_text(size = 10,
+                              face = "bold"),
+    axis.text.x = element_text(angle = 45,
+                               hjust = 0.85,
+                               vjust = 0.85),
+    strip.text.y = element_text(angle = 0)) +
+  labs(fill = 'RRA (%)',
+       x = "Sample",
+       y = "Taxa")
+
+# Exporting plot for the paper
+ggsave(plot = filtered_plot,
+       filename = paste0(figs_path, "/filtered_plot", "-", 
+                        Sys.Date(), ".pdf", sep = ""), 
+       units = "cm",
+       height = 35.5,
+       # width = 30.5,
+       width = 35.5,
+       dpi = 600)
 ```
 
 ## Preliminary tables
@@ -504,7 +503,7 @@ filt_stats_IDs_all <-
 -   Creating a table to evaluate the raw data after pipeline processing
 
 ```{r}
-raw_resume <- raw_results_tbl %>% 
+raw_resume <- raw_results_full_tbl %>% 
   group_by(Sample) %>%
   mutate("Abd total" = sum(Abundance)) %>%
   ungroup() %>%
@@ -553,17 +552,16 @@ dt_all_resume <- curated_full_tbl %>%
   group_by(`Curated ID`, `Final ID (BLASTn)`, `Site`, 
            `Level`, `Filter`, `Year`) %>%
   mutate("RRA no periodo" = (Abundance/`Abd total`)*100) %>% 
-  reframe(
-    "Total reads" = `Reads totais`,
-    "Total abundance" = `Abundancia total`,
-    "RRA" = sum(`RRA no periodo`),
-    "ASVs" = length(unique(`ASV header`)),
-    "OTUs" = length(unique(OTU)),
-    "Reads" = sum(Abundance),
-    "Class" = `Class (BLASTn)`,
-    "Order" = `Order (BLASTn)`,
-    "Family" = `Family (BLASTn)`,
-    "Genus" = `Genus (BLASTn)`
+  reframe("Total reads" = `Reads totais`,
+          "Total abundance" = `Abundancia total`,
+          "RRA" = sum(`RRA no periodo`),
+          "ASVs" = length(unique(`ASV header`)),
+          "OTUs" = length(unique(OTU)),
+          "Reads" = sum(Abundance),
+          "Class" = `Class (BLASTn)`,
+          "Order" = `Order (BLASTn)`,
+          "Family" = `Family (BLASTn)`,
+          "Genus" = `Genus (BLASTn)`
   ) %>%
   unique() 
 
@@ -580,13 +578,15 @@ dt_all_resume %>%
   mutate(RRA = round(RRA,digits = 4)) %>% 
   ungroup() %>% 
   unite(Site, Level, Year, Filter, col= "Site_Level_Year") %>% 
-  pivot_wider(id_cols = c("Class","Curated ID", "Final ID (BLASTn)", "Total reads", "Total abundance"),
+  pivot_wider(id_cols = c("Class","Curated ID", "Final ID (BLASTn)", 
+                          "Total reads", "Total abundance"),
               # names_from = Site_Level_Year_Filter,
               names_from = Site_Level_Year,
               values_from =  c("RRA","ASVs","OTUs","Reads"),
               names_glue = "{Site_Level_Year}_{.value}") %>%
   select(sort(colnames(.))) %>% 
-  relocate("Class","Curated ID","Final ID (BLASTn)","Total reads", "Total abundance",
+  relocate("Class","Curated ID","Final ID (BLASTn)","Total reads", 
+           "Total abundance",
            #2020 MCE
            "P1_High_2020_MCE_Reads",
            "P1_High_2020_MCE_ASVs",
@@ -634,7 +634,10 @@ dt_all_resume %>%
 
 View(wider_dt_all_resume)
 
-write.csv(wider_dt_all_resume, paste0(tbl_path, "/wider_dt_all_resume_2025.csv"))
+# Exporting table for the paper
+write.csv(wider_dt_all_resume, 
+          paste0(tbl_path, "/wider_dt_all_resume", "-",
+                 Sys.Date(), ".csv", sep = ""))
 ```
 
 ### Table S5
@@ -780,17 +783,20 @@ grouped_filt_tbl %>%
 
 View(wider_filt_tbl)
 
-write.csv(wider_filt_tbl, paste0(tbl_path, "/wider_dt_filt_2025.csv"))
+# Exporting table for the paper
+write.csv(wider_filt_tbl, 
+          paste0(tbl_path, "/wider_dt_filt", "-",
+                 Sys.Date(), ".csv", sep = ""))
 ```
 
 ## Initial data assesment
 
-### No Reads by sample after sequencing
+### Number of Reads by sample after sequencing
 
 ```{r}
 options(scipen = 999)
 
-seq_read_counts <- read_excel("/home/gabriel/projetos/peixes-eDNA/analises/dez_23/runs_2_4_5_EM156/results/LI-reads_and_seqs_counts2024-01-08.xlsx") %>% 
+seq_read_counts <- read_excel("/home/gabriel/projetos/old/peixes-eDNA/analises/dez_23/runs_2_4_5_EM156/results/LI-reads_and_seqs_counts2024-01-08.xlsx") %>%
   tibble() %>%
   # only MCE samples
   filter(Sample %in% c("L1_nov_dec_20_mi", "L2_nov20",
@@ -804,9 +810,11 @@ seq_read_counts <- read_excel("/home/gabriel/projetos/peixes-eDNA/analises/dez_2
                        "EM149_NEGPCR1","EM149_NEGPCR2",
                        "EM156_NegPCR1", "S724_NEGPCR1")) %>% 
   summarise("Total reads" = sum(`Raw reads (pairs)`))
+
+seq_read_counts
 ```
 
-### No reads after post-pipeline and filtering
+### Number of reads after post-pipeline and filtering
 
 -   This section computes the total read count per sample that remained after data processing and filtering. This final, high-quality dataset was used for all downstream analyses. The filtering criteria included: exclusion of NA values, restriction to the Actinopteri group, and a minimum threshold of 100 reads per curated taxonomic ID
 
@@ -863,13 +871,17 @@ grouped_filt_stats <- grouped_filt_tbl %>% #dependendo da tabela, resultados dif
     "Nspecies" = length(unique(`Curated ID`)) - Species
   ) %>%
   unique()
+
+View(grouped_filt_stats)
 ```
 
 ### Table S6
 
+**Table S6. Observed alpha-diversity values per sampling site and mean diversity per water-level period.** Observed alpha-diversity values per sampling site and mean diversity per water-level period. Alpha-diversity (Observed index) across sampling sites, showing raw values for each location and mean diversity per water-level period. The Observed index represents the total number of distinct species detected in each sample.
+
 ```{r}
 # Mean and SD of alpha-diversity
-grouped_filt_site <- grouped_filt_tbl %>% #dependendo da tabela, resultados diferentes
+grouped_filt_site <- grouped_filt_tbl %>%
   group_by(Level, Site) %>% 
   mutate(
     "Diversity" = length(unique(`Curated ID`))) %>%
@@ -880,16 +892,24 @@ grouped_filt_site <- grouped_filt_tbl %>% #dependendo da tabela, resultados dife
   mutate(
     "Mean" = mean(Diversity),
     "SD" = sd(Diversity))
+
+# Exporting table for the paper
+write.csv(grouped_filt_site, 
+          paste0(tbl_path, "/grouped_filt_site", "-",
+                 Sys.Date(), ".csv", sep = ""))
 ```
 
 ## Exploratory data assesment
 
+### Track the evolution of read counts
+
 ```{r}
-# Reads through data filtering 
-raw_results_reads <- raw_results_tbl %>% group_by(Sample) %>% 
+# Track the evolution of read counts for each sample across filtering steps
+raw_results_reads <- 
+  raw_results_tbl %>% group_by(Sample) %>% 
   summarise(`Raw reads` = sum(Abundance))
 
-pre_filt_reads <- pre_filt_tbl %>% group_by(Sample) 
+pre_filt_reads <- curated_full_tbl %>% group_by(Sample) 
 
 filt_reads <- filt_tbl %>% group_by(Sample) %>% 
   summarise(`Filt reads` = sum(Abundance))
@@ -902,37 +922,53 @@ evol_reads <- raw_results_reads %>%
   unique()
 
 View(evol_reads)
+```
 
-# ASVs that weren't identified at species Level (genus + epithet)
+### Listing identifications outside the species level
+
+```{r}
+# Identify ASVs that were not identified to the species level (genus + epithet)
 spp_level <- grouped_filt_tbl %>%
   reframe("Species" = unique(`Curated ID`[grepl("^[A-Za-z]+\\s[A-Za-z]+$", `Curated ID`) & 
-                                            !grepl("sp\\.", `Curated ID`)]))
+!grepl("sp\\.", `Curated ID`)]))
+
 nspp_level <- grouped_filt_tbl %>% 
   reframe("Nspecies" = setdiff(unique(`Curated ID`), spp_level$Species))
     
 View(nspp_level) 
+```
 
-# Informations grouped by taxa detected 
+### Table 2
+
+**Table 2. Taxa detected by eDNA metabarcoding.** Taxa detection after integrative curation, showing taxonomic assignment and corresponding absolute read abundance, ASVs, and OTUs.
+
+```{r}
+# Group final filtered data by curated taxonomic identification
 id_level <- grouped_filt_tbl %>%
   group_by(`Curated ID`) %>%
-    reframe("Order" = Order, "Family" = Family, "Genus" = Genus,
-      "Curated identification" = `Curated ID`,
-      "Reads" = sum(Reads), 
-      "ASVs" = sum(ASVs),
-      "OTUs" = sum(OTUs),
-    ) %>% 
-    unique() %>% 
-    select("Order", "Family", "Genus",
-           # "Maior hit do BLASTn",
-           "Curated identification",
-           "Reads", "ASVs","OTUs") 
+  reframe("Order" = Order,
+          "Family" = Family,
+          "Genus" = Genus,
+          "Curated identification" = `Curated ID`,
+          "Reads" = sum(Reads),
+          "ASVs" = sum(ASVs),
+          "OTUs" = sum(OTUs)) %>%
+  unique() %>%
+  select("Order", "Family", "Genus",
+         "Curated identification",
+         "Reads", "ASVs","OTUs") 
 
 View(id_level)
 
-# Arquivo para artigo
-write.xlsx(id_level, paste0(tbl_path, "/id_level_tbl.xlsx"))
+# Exporting table for the paper
+write.csv(id_level, paste0(tbl_path, "/id_level_tbl", "-",
+                           Sys.Date(), ".csv", sep = ""))
+```
 
-# Informations grouped  by Class
+### Summarizing final data by class
+
+```{r}
+# Summarize final data at the Class level
 class_Level <- grouped_filt_tbl %>%
   reframe(
     "Total reads" = sum(Reads), 
@@ -943,36 +979,45 @@ class_Level <- grouped_filt_tbl %>%
     "Genera" = length(unique(Genus)),
     "Identifications" = length(unique(`Curated ID`)),
     "Species" = length(unique(`Curated ID`[grepl("^[A-Za-z]+\\s[A-Za-z]+$", `Curated ID`) & 
-                                               !grepl("sp\\.", `Curated ID`)])), # IDs a Level de spp
-    "Nspecies" = length(unique(`Curated ID`)) - Species) # IDs em outros niveis taxonomicos
+                                               !grepl("sp\\.", `Curated ID`)])), # IDs at species level
+    "Nspecies" = length(unique(`Curated ID`)) - Species) # IDs at other taxonomic levels
   
 View(class_Level)
-  
-# Informations grouped by Order
+```
+
+### Table S3
+
+**Table S3. Taxonomic resolution across orders.** Post-curation taxonomic summary for each order, including total read abundance, number of ASVs and OTUs, and counts of assigned families, genera, and species.
+
+```{r}
+# Summarize final data at the Order level
 order_level <- grouped_filt_tbl %>%
   filter(Filter %in% "MCE") %>%
   group_by(Order) %>%
   reframe(
-    # "Curated ID" = `Curated ID`,
     "Order" = Order,
-    "Total reads" = sum(Reads), # dt_all_resume && # dt_filt
+    "Total reads" = sum(Reads),
     "ASVs" = sum(ASVs),
     "OTUs" = sum(OTUs),
     "Families" = length(unique(Family)),
     "Genera" = length(unique(Genus)),
     "Identifications" = length(unique(`Curated ID`)),
-    "Species" = length(unique(`Curated ID`[grepl("^[A-Za-z]+\\s[A-Za-z]+$", `Curated ID`) & !grepl("sp\\.", `Curated ID`)])), # a nivel de spp
-    "Nspecies" = length(unique(`Curated ID`)) - Species # em outros niveis alem de spp
+    "Species" = length(unique(`Curated ID`[grepl("^[A-Za-z]+\\s[A-Za-z]+$", `Curated ID`) & !grepl("sp\\.", `Curated ID`)])),
+    "Nspecies" = length(unique(`Curated ID`)) - Species
     ) %>% 
   unique()
   
 View(order_level)
 
-# Arquivo para artigo
-# write.xlsx(order_level, paste0(tbl_path, "/order_level_tbl.xlsx"))
-write.xlsx(order_level, paste0(tbl_path, "/order_level_tbl.xlsx"))
+# Exporting table for the paper
+write.csv(order_level,paste0(tbl_path, "/order_level_tbl", "-",
+                             Sys.Date(), ".csv", sep = ""))
+```
 
-# Informations grouped by Family
+### Summarizing final data by family
+
+```{r}
+# Summarize final data at the Family level
 family_level <- grouped_filt_tbl %>%
   filter(Filter %in% "MCE") %>%
   group_by(Family) %>%
@@ -983,41 +1028,912 @@ family_level <- grouped_filt_tbl %>%
     "OTUs" = sum(OTUs),
     "Genera" = length(unique(Genus)),
     "Identifications" = length(unique(`Curated ID`)),
-    "Species" = length(unique(`Curated ID`[grepl("^[A-Za-z]+\\s[A-Za-z]+$", `Curated ID`) & !grepl("sp\\.", `Curated ID`)])), # a nivel de spp
-    "Nspecies" = length(unique(`Curated ID`)) - Species # em outros niveis alem de spp
+    "Species" = length(unique(`Curated ID`[grepl("^[A-Za-z]+\\s[A-Za-z]+$", `Curated ID`) & !grepl("sp\\.", `Curated ID`)])),
+    "Nspecies" = length(unique(`Curated ID`)) - Species
     ) %>% 
   unique()
   
 View(family_level)
+```
 
-# Informations grouped by Sample
+### Summarizing total reads by sample
+
+```{r}
+# Summarize total reads by sample, site, and filter type
 grouped_by_Sample <- filt_tbl %>%
- # filter(Expedition %in% "Novembro 2021") %>%
  select(Sample, Filter, Reads, Site) %>%
  group_by(Filter,
           Sample
           ) %>%
  mutate("Total reads" = sum(Reads)) %>%
  reframe(Filter,
-         # Sample,
          Site,
          `Total reads`) %>%
  unique()
 
-# View(grouped_by_Sample)
+View(grouped_by_Sample)
+```
 
-# Especies encontradas em apenas uma amostra
-Counts <- grouped_filt_tbl %>% 
-  group_by(`Curated ID`) %>%
-  # group_by(`Curated ID`, Filter) %>%
-  reframe(count = n_distinct(Sample),
-            Filter, Sample) %>% 
-  unique()
+### Identifying singletons
 
-unique_counts <- 
-  Counts %>% filter(count == 1) %>% 
-  reframe(`Curated ID`,
+-   Identifying species found in a single sample
+
+    ```{r}
+    Counts <- filt_tbl %>% 
+      group_by(`Curated ID`) %>%
+      reframe(count = n_distinct(Sample),
+          Filter, Sample
+          ) %>% 
+      unique()
+
+    unique_counts <- Counts %>% 
+      filter(count == 1) %>% 
+      reframe(`Curated ID`,
           Sample)
 
-View(unique_counts)
+    View(unique_counts)
+    ```
+
+## Exploratory plots
+
+-   Define a custom function to sum unique values, necessary for pivoting data later.
+
+    ```{r}
+    # Function to handle character and numeric vectors when pivoting
+    sum_uniq <- function(vec) {
+      if (is.character(vec)) {
+    suniq <- BiocGenerics::unique(vec)
+    }
+      if (is.numeric(vec)) {
+    suniq <- sum(vec)
+    }
+      return(suniq)
+      }
+    ```
+
+### Proportions of identified taxa
+
+-   This plot illustrates the proportion of species from different taxonomic orders, faceted by sampling site and grouped by reservoir water level.
+
+    ```{r}
+    # Proportions of identified orders 
+    fish_ord_all <- 
+      grouped_filt_tbl %>%
+      unite(Site, Year, Filter, sep = "_", 
+        remove = FALSE, col = "un_amostral") %>%
+      select(c(Order,
+           `Curated ID`, 
+           Site, 
+           Year, 
+           Filter, 
+           un_amostral)) %>%
+      unique() %>%
+      group_by(Site, Year, Filter) %>%
+      mutate("alpha_d" = length(`Curated ID`)) %>%
+      ungroup() %>%
+      group_by(Order,Site, Year, Filter) %>%
+      mutate("alpha_d_order" = length(`Curated ID`)) %>%
+      ungroup() %>%
+      mutate("alpha_d_order_%" = 
+           round(alpha_d_order / alpha_d * 100, 
+                 digits = 2)) %>%
+      select(-c(`Curated ID`)) %>%
+      unique() %>%
+      group_by(un_amostral) %>%
+      mutate(Year_Level = case_when(Year == "2020" ~ "High",
+                                Year == "2021" ~ "Low",
+                                Year == "2022" ~ "High")) %>%
+      filter(Filter %in% "MCE") %>%
+      ggplot(aes(x = Year_Level,
+             y = alpha_d_order,
+             fill = Order)) +
+      geom_col(position = "fill") +
+      geom_text(aes(label = sprintf("%0.1f%%",`alpha_d_order_%`)),
+            position = position_fill(vjust = 0.5),
+            color = "black") +
+      facet_grid(rows = vars(Site),
+             space = "free",
+             scales = "free",
+             drop = TRUE) +
+      coord_flip() +
+      guides(fill = guide_legend("Orders")) +
+      theme(panel.grid.major = element_line(color = "grey",
+                                        linewidth = 0.2,
+                                        linetype = 1),
+        axis.ticks = element_blank(),
+        axis.text = element_text(color = "black"),
+        axis.title = element_text(color = "black", 
+                                  size = rel(1.2)),
+        legend.text = element_text(color = "black"),
+        legend.title = element_text(color = "black", 
+                                    size = rel(1.2)),
+        plot.title = element_text(color = "black",
+                                  size = rel(1.5)),
+        plot.subtitle = element_text(color = "black",
+                                     size = rel(1.2))) +
+      theme(plot.title = element_text(size = 20, 
+                                  face = "bold"),
+        axis.text.x = element_text(size = 20),
+        axis.text.y = element_text(size = 20),
+        axis.title.x = element_text(size = 20, face = "bold"),
+        axis.title.y = element_text(size = 20, face = "bold"),
+        legend.text = element_text(size = 19),
+        legend.title = element_text(size = 19),
+        strip.text = element_text(size = 15, face = "bold"),
+        legend.position = "bottom",
+        legend.background = element_rect(fill = "lightgray",
+                                         color = NA)) +
+      scale_y_continuous(labels = scales::percent) +
+      scale_fill_manual(values = c("#1f77b4",
+                               "#ff7f0e",
+                               "#2ca02c",
+                               "#d62728"
+                               )) +
+      labs(x = "Reservoir level", 
+       y = "Proportion of species")
+
+    fish_ord_all
+
+    # Exporting plot for the paper
+    ggsave(plot = fish_ord_all,
+       filename = paste0(figs_path, "/alpha_ord", "-", 
+                         Sys.Date(), ".pdf", sep = ""),
+       units = "cm",
+       height = 20,
+       width = 30,
+       dpi = 600)
+    ```
+
+-   This plot shows the proportion of species from different taxonomic families, faceted by sampling site and grouped by reservoir water level.
+
+    ```{r}
+    # Proportions of identified families
+    fish_fam_all <- 
+      grouped_filt_tbl %>%
+      unite(Site, Year, Filter,sep = "_", 
+        remove = FALSE, col = "un_amostral") %>%
+      select(c(Order, 
+           Family,
+           `Curated ID`, 
+           Site, 
+           Year, 
+           Filter, 
+           un_amostral)) %>%
+      unique() %>%
+      group_by(Site, Year, Filter) %>%
+      mutate("alpha_d" = length(`Curated ID`)) %>%
+      ungroup() %>%
+      group_by(Family,Site, Year, Filter) %>%
+      mutate("alpha_d_order" = length(`Curated ID`)) %>%
+      ungroup() %>%
+      mutate("alpha_d_order_%" = 
+           round(alpha_d_order / alpha_d * 100, 
+                 digits = 2)) %>%
+      select(-c(`Curated ID`)) %>%
+      unique() %>%
+      group_by(un_amostral) %>%
+      mutate(Year_Level = case_when(Year == "2020" ~ "Full",
+                                Year == "2021" ~ "Low",
+                                Year == "2022" ~ "Full")) %>%
+      filter(Filter %in% "MCE") %>%
+      ggplot(aes(x = Year_Level,
+             y = alpha_d_order,
+             fill = Family)) +
+      geom_col(position = "fill") +
+      geom_text(aes(label = sprintf("%0.1f%%",`alpha_d_order_%`)),
+                position = position_fill(vjust = 0.5),
+                color = "black") +
+      facet_grid(rows = vars(Site),
+             space = "free",
+             scales = "free",
+             drop = TRUE) +
+      coord_flip() +
+      guides(fill = guide_legend("Family")) +
+      theme(panel.grid.major = element_line(color = "grey",
+                                        linewidth = 0.2,
+                                        linetype = 1),
+        axis.ticks = element_blank(),
+        axis.text = element_text(color = "black"),
+        axis.title = element_text(color = "black", 
+                                  size = rel(1.2)),
+        legend.text = element_text(color = "black"),
+        legend.title = element_text(color = "black", 
+                                    size = rel(1.2)),
+        plot.title = element_text(color = "black",
+                                  size = rel(1.5)),
+        plot.subtitle = element_text(color = "black",
+                                     size = rel(1.2))) +
+      theme(plot.title = element_text(size = 20, 
+                                  face = "bold"),
+        axis.text.x = element_text(size = 20),
+        axis.text.y = element_text(size = 20),
+        axis.title.x = element_text(size = 20, 
+                                    face = "bold"),
+        axis.title.y = element_text(size = 20, 
+                                    face = "bold"),
+        legend.text = element_text(size = 19),
+        legend.title = element_text(size = 19),
+        strip.text = element_text(size = 15, face = "bold"),
+        legend.position = "bottom",
+        legend.background = element_rect(fill = "lightgray",
+                                         color = NA)) +
+      scale_y_continuous(labels = scales::percent) +
+      scale_fill_manual(values = c("#5d9cecff",
+                               "#4fc1e9ff",
+                               "#48cfadff",
+                               "#a0d468ff",
+                               "#ffce54ff",
+                               "#fc6e51ff",
+                               "#ed5565ff",
+                               "#ac92ecff",
+                               "#ec87c0ff"
+                               )) +
+      labs(x = "Reservoir level", 
+       y = "Proportion of species")
+
+    fish_fam_all
+
+    # Exporting plot for the paper
+    ggsave(plot = fish_fam_all, 
+       filename = paste0(figs_path, "/alpha_fam", "-", 
+                         Sys.Date(), ".pdf", sep = ""),
+       units = "cm",
+       height = 20.5,
+       width = 30,
+       dpi = 600)
+    ```
+
+### RRA distribution
+
+-   This tile plot visualizes the Relative Read Abundance (RRA) of each taxon across different sites and water levels, faceted by taxonomic order.
+
+    ```{r}
+    # Defining order and species levels for factor ordering
+
+    order_levels <- 
+      grouped_filt_tbl$Order %>% 
+      sort() %>% 
+      unique()
+
+    spp_levels <- 
+      grouped_filt_tbl$`Curated ID` %>% 
+      sort() %>% 
+      unique()
+      
+    # Tile plot for all years 
+    tile_all <- 
+      grouped_filt_tbl %>%
+      mutate(`Curated ID` = factor(`Curated ID`, 
+                               levels = rev(spp_levels)),
+         Site = factor(Site),
+         Year_Level = case_when(Year == "2020" ~ "High",
+                                Year == "2021" ~ "Low",
+                                Year == "2022" ~ "High"),
+         Order_abrev = case_when(Order == "Characiformes" ~
+                                   "Char",
+                                Order == "Cichliformes" ~
+                                   "Cich",
+                                Order == "Siluriformes" ~
+                                   "Sil",
+                                Order == "Cyprinodontiformes" ~
+                                  "Cypr"),
+         Order_abrev = factor(Order_abrev, 
+                              levels = c("Char", 
+                                         "Cich",
+                                         "Cypr", 
+                                         "Sil"))) %>%
+      ggplot(aes(y = `Curated ID`,
+             x = Site,
+             fill = RRA)) +
+      geom_tile() +
+      facet_grid(cols = vars(Year_Level),
+             rows = vars(Order_abrev),
+             space = "free",
+             scales = "free",
+             drop = TRUE) +
+      scale_fill_gradientn(name = "RRA (%)",
+                       colours = rev(c("#30123BFF", 
+                                       "#4662D7FF", 
+                                       "darkgreen", 
+                                       "#72FE5EFF", 
+                                       "#C7EF34FF", 
+                                       "#FABA39FF", 
+                                       "#F66B19FF", 
+                                       "#CB2A04FF", 
+                                       "#7A0403FF")),
+                       values = scales::rescale(c(0, 0.01,0.05, 0.25,1, 2.5,5, 10, 25, 50, 75, 100)),
+                       breaks = c(0, 0.01, 0.05, 0.25, 1.00,2.50, 5.00,10.00, 25.00, 50.00, 100.00),
+                       labels = scales::number_format(accuracy = 0.01),
+                       limits = c(0.01, 100),
+                       na.value = "#7A0403FF",
+                       trans = "log10") +
+      theme(panel.grid.major = element_line(color = "grey",
+                                        linewidth = 0.2,
+                                        linetype = 1),
+        legend.text = element_text(size = 13, 
+                                   color = "black"),
+        legend.title = element_text(size = 14, 
+                                    face = "bold", 
+                                    margin = margin(b = 10),
+                                    color = "black"),
+        strip.background = element_rect(fill = "#e4e4e4"),
+        strip.text = element_text(size = 17, 
+                                  face = "bold", 
+                                  color = "black"),
+        axis.text.x = element_text(size = 15),
+        axis.text.y = element_text(size = 17, 
+                                   face = "italic"),
+        axis.title = element_text(size = 20, 
+                                  face = "bold"),
+        legend.position = "right",
+        legend.key.height = unit(3, 'cm')) +
+      labs(fill = 'RRA (%)',
+       x = "Sample site",
+       y = "Taxa")
+
+    tile_all
+
+    # Exporting plot for the paper
+    ggsave(plot = tile_all,
+       filename = paste0(figs_path, "/tile_20-22", "-",
+                         Sys.Date(), ".pdf", sep = ""),
+       units = "cm",
+       height = 20.5,
+       width = 25.5,
+       dpi = 600)
+    ```
+
+### Alpha diversity
+
+-   Prepare data and create a phyloseq object to calculate alpha diversity indices.
+
+    ```{r}
+    # Alpha diversity data preparation ----
+
+    # Tax table
+    blast_tax_tbl <- grouped_filt_tbl %>%
+      dplyr::select(c("Curated ID",
+                  "Genus",
+                  "Family",
+                  "Order",
+                  "Class")) %>%
+      unique() %>%
+      as.data.frame() %>%
+      `rownames<-`(.$`Curated ID`) %>%
+      dplyr::select(-c("Curated ID")) %>%
+      as.matrix()
+      
+    # OTU table
+    otu_tbl <- grouped_filt_tbl %>%
+      unite(Site, 
+        Level, 
+        Year, col = "Sample", remove = FALSE) %>%
+      select(Sample, Reads, `Curated ID`) %>%
+      pivot_wider(id_cols = `Curated ID`,
+              values_from = Reads,
+              values_fn = sum_uniq,
+              names_from = Sample,
+              names_sort = TRUE) %>%
+      mutate(across(starts_with("P") ,
+                ~ replace_na(.,replace = 0))) %>%
+      mutate_if(is.numeric, ~ifelse(. == 0, 0, 1)) %>% # jaccarize
+      as.data.frame() %>%
+      column_to_rownames(var = "Curated ID") %>%
+      dplyr::filter(rowSums(.)!= 0) %>%
+      dplyr::select(which(!colSums(., na.rm = TRUE) %in% 0))
+
+    # Metadata table
+    metadata_tbl <- grouped_filt_tbl %>%
+      ungroup() %>%
+      unite(Site, 
+        Level, 
+        Year, col = "Sample", remove = FALSE) %>%
+      select(Sample, Site, Level, Year) %>%
+      as.data.frame() %>%
+      unique() %>%
+      `rownames<-`(.$Sample)
+
+    # Creating Phyloseq object
+    phyloseq_tbl <- phyloseq(otu_table(otu_tbl, 
+                                   taxa_are_rows = TRUE),
+                         sample_data(metadata_tbl),
+                         tax_table(blast_tax_tbl)) 
+    ```
+
+-   Estimate and plot species richness (Observed index) as a boxplot, comparing high and low water levels.
+
+    ```{r}
+    # Estimating richness ----
+    rich_tbl <- 
+      estimate_richness(phyloseq_tbl,
+                        split = TRUE,
+                        measures = c("Observed",
+                                     "Chao1",
+                                     "Shannon",
+                                     "Simpson")) %>%
+      as_tibble(rownames = "Sample") %>%
+      left_join(y = metadata_tbl,
+                by = "Sample")
+
+    # Plotting richness
+    boxplot_alpha <- rich_tbl %>%
+      ggplot(aes(x = Level, y = Observed)) +
+      geom_boxplot(fill = c("#3381b1", 
+                        "#f1c232"),
+                   alpha = 0.7) +
+      geom_jitter(width = 0.2,
+                  alpha = 0.5) +
+      theme(panel.grid.major = element_line(color = "grey",
+                                            # width = 0.2,
+                                            linetype = 1),
+            strip.background = element_rect(fill = "#e4e4e4"),
+            strip.text = element_text(size = 17,
+                                      face = "bold",
+                                      color = "black"),
+            axis.text.x = element_text(size = 17),
+            axis.text.y = element_text(size = 17),
+            axis.title = element_text(size = 20, 
+                                      face = "bold")) +
+      labs(x = "Water level",
+           y = "Richness")
+
+    boxplot_alpha
+
+    # Exporting plot for the paper
+    ggsave(plot = boxplot_alpha,
+           filename = paste(figs_path, "/boxplot_alpha_levels-",
+                            Sys.Date(), ".pdf", sep = ""),
+           units = "cm", 
+           height = 9, 
+           width = 10, 
+           dpi = 600)
+    ```
+
+### Venn Diagram Analysis
+
+-   This section prepares data to identify common and exclusive species between different water levels and sampling sites. The resulting tables can be used to create Venn diagrams.
+
+```{r}
+# Venn diagram data preparation ----
+    
+# Filtering for unique taxa per level/site
+resume_venn <- grouped_filt_tbl %>%
+  select(`Curated ID`, 
+         Genus, 
+         Family, 
+         Order, 
+         Filter, 
+         Level, 
+         Site) %>%
+  unique()
+      
+# Common species between High and Low water levels
+spp_comm <- resume_venn %>%
+  group_by(`Curated ID`) %>%
+  summarise(n_Level = n_distinct(Level)) %>%
+  filter(n_Level >= 2) %>%
+  select(`Curated ID`)
+
+spp_comm
+    
+# Exclusive species to High and Low water levels
+spp_diff <- resume_venn %>%
+  group_by(`Curated ID`) %>%
+  summarise(Low_count = sum(as.integer(Level == "Low")),
+            High_count = sum(as.integer(Level == "High")),
+            Low_only = Low_count >= 1 & High_count == 0,
+            High_only = Low_count == 0 & High_count >= 1) %>%
+  ungroup()
+      
+spp_diff
+
+# Common species across all 4 sample sites
+spp_comm_sites <- resume_venn %>%
+  group_by(`Curated ID`) %>%
+  summarise(n_Sites = n_distinct(Site)) %>%
+  filter(n_Sites == 4) %>%
+  select(`Curated ID`)
+
+spp_comm_sites
+    
+# Exclusive species to each sample site
+spp_diff_sites <- resume_venn %>%
+  group_by(`Curated ID`) %>%
+  summarise(P1_count = sum(as.integer(Site == "P1")),
+            P2_count = sum(as.integer(Site == "P2")),
+            P3_count = sum(as.integer(Site == "P3")),
+            P4_count = sum(as.integer(Site == "P4")),
+            P1_only = P1_count >= 1 & P2_count == 0 & 
+              P3_count == 0 & P4_count == 0,
+            P2_only = P2_count >= 1 & P1_count == 0 & 
+              P3_count == 0 & P4_count == 0,
+            P3_only = P3_count >= 1 & P1_count == 0 & 
+              P2_count == 0 & P4_count == 0,
+            P4_only = P4_count >= 1 & P1_count == 0 & 
+              P2_count == 0 & P3_count == 0) %>%
+  ungroup()
+
+spp_diff_sites
+```
+
+## Ecological analysis
+
+### PCoA
+
+#### Data preparation for PCoA
+
+-   Create a wide-format table (`Samples x Taxa`) with RRA values, which is required for ordination analysis in `vegan`.
+
+```{r}
+# PCoA Data Preparation ----
+
+# Create a new sample identifier by combining Site, Level, and Year
+wider_filt_tbl_redux <- grouped_filt_tbl %>%
+  mutate(RRA = round(RRA,
+                     digits = 4)) %>%
+  ungroup() %>%
+  unite(Site, 
+        Level, 
+        Year, col= "New_sample", remove = FALSE)
+    
+# Convert the long table to a wide format (Samples x IDs)
+FINAL_tbl_IDs_2 <- wider_filt_tbl_redux %>%
+  select(c("New_sample", 
+           "Curated ID", 
+           "Year", 
+           "Level", 
+           "Site", 
+           "Filter", 
+           "RRA")) %>%
+  pivot_wider(id_cols = c("New_sample", 
+                          "Year", 
+                          "Level", 
+                          "Site", 
+                          "Filter"),
+              names_from = `Curated ID`,
+              values_from = `RRA`,
+              values_fn = sum_uniq,
+              names_sort = TRUE,
+              names_prefix = "ID_") %>%
+  relocate(c("New_sample", 
+             "Year", 
+             "Level", 
+             "Filter", 
+             "Site", starts_with("ID_"))) %>%
+  mutate(across(starts_with("ID_"), 
+                \(x) replace_na(x, 0))) %>%
+  mutate("Site" = as.factor(Site)) %>%
+  mutate("Level" = as.factor(Level)) 
+    
+# Prepare the final dataframe for vegan
+all_IDs_PCoA_df <- FINAL_tbl_IDs_2 %>%
+  mutate("Sample number" = row_number()) %>%
+  relocate("Sample number") %>%
+  as.data.frame()
+    
+row.names(all_IDs_PCoA_df) <- 
+  all_IDs_PCoA_df$`Sample number`
+    
+# Clean species names to avoid plotting issues
+colnames(all_IDs_PCoA_df)[8:ncol(all_IDs_PCoA_df)] <- 
+  colnames(all_IDs_PCoA_df)[8:ncol(all_IDs_PCoA_df)] %>%
+  str_replace_all(pattern = " ", replacement = "_") %>%
+  str_replace_all(pattern = "\\.", replacement = "") %>%
+  str_replace_all(pattern = "\\(", replacement = "") %>%
+  str_replace_all(pattern = "\\)", replacement = "")
+```
+
+#### Executing and Plotting PCoA
+
+-   Perform the Principal Coordinates Analysis (PCoA) on a Jaccard distance matrix to visualize community composition differences between high and low water levels.
+
+```{r}
+# Executing PCoA for High vs. Low ----
+    
+# Filter data and create distance matrix
+MCE_all_IDs_PCoA_df <- all_IDs_PCoA_df %>% 
+  select(where(~ any(. != 0)))
+
+pcOa_dist <- vegan::vegdist(x = MCE_all_IDs_PCoA_df[,8:ncol(MCE_all_IDs_PCoA_df)],
+                              method = "jaccard",
+                              binary = TRUE)
+
+# Run PCoA
+pcOa <- cmdscale(pcOa_dist, eig = TRUE)
+
+ordiplot(pcOa, display = 'sites', type = 'text')
+    
+# Fit species vectors to the ordination
+meta.spp.fit <- envfit(pcOa,MCE_all_IDs_PCoA_df[,8:ncol(MCE_all_IDs_PCoA_df)], permutations = 999)
+    
+# Extract scores for significant species
+sps_pvals <- 
+  tibble("IDs" = names(meta.spp.fit$vectors$pvals),
+         "p-value" = meta.spp.fit$vectors$pvals)
+                        
+spp.scrs <- 
+  as.data.frame(scores(meta.spp.fit, 
+                       display = "vectors")) %>%
+  mutate("IDs" = rownames(.)) %>%
+  left_join(y = sps_pvals, 
+            by = "IDs")
+      
+spp.scrs$IDs <- gsub("ID_", "", 
+                     spp.scrs$IDs)
+
+spp.scrs$IDs <- gsub("_", " ", 
+                     spp.scrs$IDs)
+      
+sig.spp.scrs <- spp.scrs %>% 
+  filter(`p-value` <= 0.05)
+    
+# Extract site scores and centroids
+site.scrs <- as.data.frame(scores(pcOa, 
+                                  display = "sites"))
+
+colnames(site.scrs) <- c("PCoA1", "PCoA2")
+
+site.scrs <- site.scrs %>%
+  mutate("Sample number" = as.double(row.names(.))) %>%
+  left_join(y = MCE_all_IDs_PCoA_df[, c("Sample number",
+                                        "New_sample",
+                                        "Level", 
+                                        "Site")], 
+            by = "Sample number")
+    
+cent <- aggregate(cbind(PCoA1, PCoA2) ~ Level, 
+                  data = site.scrs, 
+                  FUN = "mean")
+    
+# Calculate ellipses for plotting
+ord <- ordiellipse(ord = pcOa,
+                   groups = MCE_all_IDs_PCoA_df$Level,
+                   display = "sites",
+                   kind = "ehull", 
+                   conf = 0.95, 
+                   label = TRUE)
+
+df_ell <- data.frame() 
+
+for(g in levels(as.factor(MCE_all_IDs_PCoA_df$Level))){
+  df_ell <- rbind(df_ell,cbind(as.data.frame(with(site.scrs[site.scrs$Level==g,],vegan:::veganCovEllipse(
+    ord[[g]]$cov,ord[[g]]$center,ord[[g]]$scale))),Level=g))
+    }
+```
+
+#### Plotting
+
+```{r}
+# PCoA Plotting ----
+
+percent_pcOa <- pcOa$eig / sum(pcOa$eig) * 100
+    
+cores <- c("High" = "#3381b1", 
+           "Low" = "#E63946")
+    
+PCoA_MCE_2 <- 
+  ggplot(data = site.scrs, 
+         aes(x=PCoA1, y=PCoA2)) +
+# Ellipses
+  ggforce::geom_mark_ellipse(data = df_ell,
+                             aes(x = Dim1, 
+                                 y = Dim2, group = Level,
+                                 label = Level, 
+                                 col = Level, fill = Level),
+                                 inherit.aes = FALSE,
+                             alpha=0.10, linetype=2, 
+                             expand = 0, label.fontsize = 20,
+                             con.cap = 0.1) +
+# Sample points
+  geom_point(aes(fill = Level, 
+                 col=Level, 
+                 group = Level, 
+                 shape = Site), 
+             stroke = 0.5, 
+             alpha = 0.75, 
+             size = 3) +
+# Sample labels
+  ggrepel::geom_text_repel(aes(label = Site), 
+                           size=6, direction = "both",
+                           segment.size = 0.25,
+                           segment.alpha=0.1, force = 3,
+                           max.overlaps = 100, 
+                           fontface = "bold") +
+  # Species vectors
+  geom_segment(data = sig.spp.scrs, 
+               aes(x = 0, xend = Dim1, 
+                   y = 0, yend = Dim2),
+               arrow = arrow(length = unit(0.1, "cm")),
+               colour = "grey30", alpha = 0.5, lwd = 0.3) +
+  # Species labels
+  geom_text_repel(data = sig.spp.scrs, 
+                  aes(x=Dim1, y=Dim2, label = IDs),
+                  size = 3.5, alpha = 0.75, 
+                  segment.size = 0.25, 
+                  segment.alpha = 0.1, 
+                  max.overlaps = 25) +
+  # Centroids
+  geom_point(data = cent, 
+             aes(x = PCoA1, 
+                 y = PCoA2, 
+                 fill = Level),
+             size = 8, 
+             colour = "#222222",
+             alpha = 0.75, 
+             shape  = 13) +
+  coord_fixed(expand = c(0.5)) +
+  theme(panel.grid.major = element_line(color = "grey", 
+                                        size = 0.2, 
+                                        linetype = 1),
+        axis.text = element_text(size = 17, 
+                                 color = "black"),
+        axis.title = element_text(size = 20, 
+                                  face = "bold"),
+        legend.position = "none") +
+  labs(x = paste0("PCoA1 (", 
+                  round(percent_pcOa, 2), "%)")[1],
+       y = paste0("PCoA2 (", 
+              round(percent_pcOa, 2), "%)")[2]) +
+  scale_fill_manual(values = cores) +
+  scale_colour_manual(values = cores)
+
+PCoA_MCE_2
+
+# Exporting plot for the paper
+ggsave(plot = PCoA_MCE_2, 
+       filename = paste0(figs_path, "/PCoA_all", "-",
+                         Sys.Date(), ".pdf", sep = ""),
+       units = "cm", 
+       height = 16.75, 
+       width = 16.75, 
+       dpi = 600)
+```
+
+### PERMANOVA
+
+-   Perform a PERMANOVA (`adonis2`) to statistically test for significant differences in community composition between water levels, and check for homogeneity of multivariate dispersions (`betadisper`).
+
+```{r}
+# PERMANOVA ----
+
+# Create distance matrix (if not already created for PCoA)
+pcOa_mtx <- as.matrix(pcOa_dist)
+
+# Test assumption of homogeneity of dispersions
+Dispersion <- betadisper(pcOa_dist, 
+                         group = MCE_all_IDs_PCoA_df$Level,
+                         type = "centroid")
+plot(Dispersion)
+anova(Dispersion)
+    
+# Perform PERMANOVA test
+perma_test <- 
+  adonis2(pcOa_mtx ~ as.factor(MCE_all_IDs_PCoA_df$Level),
+          data = as.data.frame(pcOa_mtx),
+          permutations=9999)
+
+perma_test
+```
+
+### Species accumulation curves
+
+-   Generate species accumulation curves to assess how richness increases with the number of samples, calculated for all samples combined and separately for high and low water levels.
+
+```{r}
+# Species accumulation curves ----
+    
+# Prepare data: wide format (samples x species), presence/absence
+
+wider_grouped_sampled_filt <- 
+  grouped_sampled_filt_tbl %>%
+  filter(Filter %in% "MCE") %>%
+  select(c(Sample, 
+           Site, 
+           Level, 
+           `Curated ID`, 
+           Reads, 
+           Expedition, 
+           Filter)) %>%
+  group_by(Sample, `Curated ID`, Reads) %>%
+  unique %>%
+  pivot_wider(names_from = `Curated ID`,
+              values_from = Reads,
+              names_sort = TRUE) %>%
+  as.data.frame() %>%
+  mutate(across(everything(), ~replace_na(.x, 0)))
+
+jaccarize <- function(x) { 
+  ifelse(x == 0, 0, 1) 
+  }
+
+wider_grouped_sampled_filt_pa <- 
+  wider_grouped_sampled_filt %>%
+  mutate(across(c(5:ncol(.)), jaccarize))
+    
+# Calculate accumulation curve for all MCE samples
+accum_mce <- 
+  specaccum(wider_grouped_sampled_filt_pa[5:ncol(wider_grouped_sampled_filt_pa)], method = "random")
+   
+accum_mce_df <- tibble("Sites" = c(0, accum_mce$sites), "Richness" = c(0, accum_mce$richness), "sd" = c(0, accum_mce$sd), "Level" = "All")
+    
+# Calculate for Low-level samples only
+wider_grouped_sampled_filt_low <- wider_grouped_sampled_filt_pa %>% filter(Level %in% "Low")
+    
+accum_low <- specaccum(wider_grouped_sampled_filt_low[5:ncol(wider_grouped_sampled_filt_low)], method = "random")
+    
+accum_low_df <- tibble("Sites" = c(0, accum_low$sites), "Richness" = c(0, accum_low$richness), "sd" = c(0, accum_low$sd), "Level" = "Low")
+    
+# Calculate for High-level samples only
+wider_grouped_sampled_filt_high <- wider_grouped_sampled_filt_pa %>% filter(Level %in% "High")
+    
+accum_full <- specaccum(wider_grouped_sampled_filt_high[5:ncol(wider_grouped_sampled_filt_high)], method = "random")
+    
+accum_full_df <- tibble("Sites" = c(0, accum_full$sites), "Richness" = c(0, accum_full$richness), "sd" = c(0, accum_full$sd), "Level" = "High")
+    
+# Combine and plot
+combined_accum <- bind_rows(accum_mce_df, accum_low_df, accum_full_df) %>%
+  mutate(Level = factor(Level, levels = c("All", 
+                                          "Low", 
+                                          "High")))
+collector_plot_all <- combined_accum %>%
+  ggplot(aes(x = Sites,
+             y = Richness,
+             color = Level,
+             fill = Level )) +
+  geom_line(linewidth = 2, alpha = 0.50) +
+  geom_point(size = 1) +
+  geom_errorbar(aes(ymin = Richness - sd, 
+                    ymax = Richness + sd, 
+                    colour=Level), width=.2) +
+  scale_color_manual(values = c("All" = "#2A6B33", 
+                                "Low" = "#E63946", 
+                                "High" = "#457B9D"),
+                     labels = c("All" = "All samples", 
+                                "Low" = "Low-level", 
+                                "High" = "High-level")) +
+  scale_x_continuous(breaks =seq(0,
+                                 max(combined_accum$Sites),
+                                 by = 3)) +
+  scale_y_continuous(breaks = seq(0,
+                                max(combined_accum$Richness),
+                                by = 3)) +
+  geom_label_repel(data = combined_accum %>%
+                     arrange(desc(Sites)) %>% 
+                     distinct(Level, .keep_all = TRUE),
+                   aes(label = recode(Level, 
+                                      "All" = "All samples",
+                                      "Low" = "Low-level",
+                                      "High" = "High-level"),
+                       color = Level),
+                       size = 7, 
+                   fontface = "bold", 
+                   nudge_y = 3, 
+                   fill = "white",
+                   box.padding = 1, 
+                   point.padding = 0.5, 
+                   segment.color = "grey50", 
+                   show.legend = FALSE) +
+  theme(panel.grid.major = element_line(color = "grey",
+                                        linewidth = 0.2,
+                                        linetype = 1),
+        axis.text = element_text(color = "black", 
+                                 size = 17),
+        axis.title = element_text(color = "black", 
+                                  size = 20, 
+                                  face = "bold"),
+        strip.background = element_rect(fill = "#e4e4e4"),
+        legend.position = "none") +
+  labs(x = "Number of samples", 
+       y = "Richness")
+    
+collector_plot_all
+
+# Exporting plot for the paper
+ggsave(file = paste0(figs_path,"/", "collector_plot_all",
+                     "-", Sys.Date(), ".pdf", collapse = ""),
+       plot = collector_plot_all, 
+       width = 20, 
+       height = 12, 
+       units = "cm", 
+       dpi = 600)
 ```
