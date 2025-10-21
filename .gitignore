@@ -2,8 +2,8 @@
 .Rhistory
 .RData
 .Ruserdata
-.xlsx
-.pdf
-.csv
-.fas
-.nwk
+*.xlsx
+*.pdf
+*.csv
+*.fas
+*.nwk
