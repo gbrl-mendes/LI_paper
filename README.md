@@ -39,7 +39,7 @@ Key deliverables include:
 **Paths are defined in-script; adjust to your local environment if folder layout differs.**
 
 ### Citation
-If this workflow is useful for you, or your academic work, please cite the repository and credit the author of the scripts 😊. 
+If this workflow is useful for you, please cite the repository and credit the author of the scripts 😊. 
 
 BLAST references, databases, and R packages should be cited according to their individual guidelines.
 
