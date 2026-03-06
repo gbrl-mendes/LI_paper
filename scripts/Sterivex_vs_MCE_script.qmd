@@ -1,5 +1,5 @@
 ---
-title: "Analyses of Hydrology-Induced Changes Drive Fish eDNA Ecology in a Neotropical Reservoir paper"
+title: "Sterivex versus MCE Analyses for APQ-02247-23 FAPEMIG  project"
 format: html
 theme: cerulean
 code-block-bg: true
@@ -14,6 +14,8 @@ anchor-sections: true
 author: 
   - "Gabriel A. Mendes, Msc"
 date: "`r format(Sys.time(), '%B, %Y')`"
+editor_options: 
+  chunk_output_type: console
 ---
 
 This pipeline integrates public tools available for metabarcoding analyses from "Analyses of Hydrology-Induced Changes Drive Fish eDNA Ecology in a Neotropical Reservoir" paper. To share or reproduce this content, please require authors' consent.
@@ -95,7 +97,7 @@ This pipeline integrates public tools available for metabarcoding analyses from 
     # Creating and loading paths ----
     {
       prjct_path <- "/home/gabriel/projetos/LI_paper"
-      prjct_radical <- "eDNA_Lagoa-dos-Ingleses"
+      prjct_radical <- "Sterivex_vs_MCE"
       scripts_path <- paste0(prjct_path,"/scripts")
       data_path <- paste0(prjct_path,"/data")
       results_path <- paste0(prjct_path,"/results")
@@ -304,9 +306,10 @@ Finally, we create a metadata table containing information about each sample (su
 -   We remove reads outside the expected size range, NA identifications, potential contaminants from birds and mammals with low scores, and data from negative controls. Only data generated with MCE filter are used for downstream analyses.
 
     ```{r}
-    curated_full_tbl <-
+    curated_full_tbl_stx_vs_mce <-
       raw_results_full_tbl %>%
-      filter(Filter == "MCE",
+      filter(#Filter == "MCE",
+             Expedition == "November 2021", 
              `Primer expected length` != "out of range",
              !is.na(`Curated ID`),
              `Curated ID` != "NA",
@@ -319,11 +322,11 @@ Finally, we create a metadata table containing information about each sample (su
                             "br_nov21"),
              `Obs. Curadoria` != "Possible contamination")
 
-    write_csv(curated_full_tbl, 
-          paste0(tbl_path, "/curated_full_tbl", "-",
-                 Sys.Date(), ".csv", sep = ""))
+    # write_csv(curated_full_tbl, 
+    #       paste0(tbl_path, "/curated_full_tbl", "-",
+    #              Sys.Date(), ".csv", sep = ""))
 
-    curated_full_tbl
+    curated_full_tbl_stx_vs_mce
     ```
 
 #### Analysis of removed data
@@ -661,8 +664,8 @@ Finally, we create a metadata table containing information about each sample (su
     ```{r}
     # Creating the table with data to be used in analysis
     # Filtered data, only Actinopteri and reads >=100
-    filt_tbl <- 
-      curated_full_tbl %>% 
+    filt_tbl_stx_vs_mce <- 
+      curated_full_tbl_stx_vs_mce %>% 
       filter(`Class (BLASTn)` %in% "Actinopteri",
              !`Curated ID` %in% c("Salmo salar")) %>% 
       group_by(`Curated ID`, Site, Level, Filter, Year) %>% 
@@ -671,8 +674,8 @@ Finally, we create a metadata table containing information about each sample (su
       ungroup()
 
     # Filtered and grouped data by Samples
-    grouped_sampled_filt_tbl <- 
-      curated_full_tbl %>% 
+    grouped_sampled_filt_tbl_stx_vs_mce <- 
+      curated_full_tbl_stx_vs_mce %>% 
       filter(`Class (BLASTn)` %in% "Actinopteri",
              !`Curated ID` %in% c("Salmo salar")) %>% 
       group_by(`Curated ID`, Sample) %>% 
@@ -702,7 +705,7 @@ Finally, we create a metadata table containing information about each sample (su
               "OTUs" = length(unique(OTU))) 
 
     # Is RRA correct?
-    grouped_sampled_filt_tbl %>%
+    grouped_sampled_filt_tbl_stx_vs_mce %>%
       group_by(Sample) %>%
       summarise(total_RRA = sum(RRA, na.rm = TRUE)) %>%
       ungroup()
@@ -710,8 +713,8 @@ Finally, we create a metadata table containing information about each sample (su
     # Filtered and grouped data by Year, Site and Filter
 
     # A tabela wider precisa dessas informacoes separadamente
-    grouped_filt_tbl <- 
-      filt_tbl %>%
+    grouped_filt_tbl_stx_vs_mce <- 
+      filt_tbl_stx_vs_mce %>%
       # creating total abundance by period
       group_by(Level, Site, Filter, Year) %>%
       mutate("Abd total" = sum(Abundance)) %>%
@@ -737,14 +740,15 @@ Finally, we create a metadata table containing information about each sample (su
       unique()
 
     # Is RRA correct?
-    grouped_filt_tbl %>%
+    grouped_filt_tbl_stx_vs_mce %>%
       group_by(Site, Level, Filter, Year) %>%
       summarise(total_RRA = sum(RRA, na.rm = TRUE)) %>%
-      ungroup()
+      ungroup() %>% 
+      View()
 
     # Tabela wider com os dados filtrados
-    wider_filt_tbl <- 
-      grouped_filt_tbl %>%
+    wider_filt_tbl_stx_vs_mce <- 
+      grouped_filt_tbl_stx_vs_mce %>%
       mutate(RRA = round(RRA,digits = 4)) %>% 
       ungroup() %>% 
       unite(Site, Level, Year, col= "Site_Level_Year") %>% 
@@ -766,12 +770,12 @@ Finally, we create a metadata table containing information about each sample (su
                "P3_High_2022_Reads", "P3_High_2022_ASVs", "P3_High_2022_OTUs", "P3_High_2022_RRA", "P4_High_2022_Reads", "P4_High_2022_ASVs",
                "P4_High_2022_OTUs", "P4_High_2022_RRA")
       
-    # Exporting table for the paper
-    write.csv(wider_filt_tbl, 
-              paste0(tbl_path, "/wider_dt_filt", "-",
-                     Sys.Date(), ".csv", sep = ""))
+    # # Exporting table for the paper
+    # write.csv(wider_filt_tbl, 
+    #           paste0(tbl_path, "/wider_dt_filt", "-",
+    #                  Sys.Date(), ".csv", sep = ""))
 
-    wider_filt_tbl
+    wider_filt_tbl_stx_vs_mce
     ```
 
 ## Initial data assesment
@@ -785,24 +789,19 @@ seq_read_counts <-
   read_excel("/home/gabriel/projetos/old/peixes-eDNA/analises/dez_23/runs_2_4_5_EM156/results/LI-reads_and_seqs_counts2024-01-08.xlsx") %>%
   tibble() %>%
   # only MCE samples
-  # filter(Unique_File_name %in% c("L1_nov_dec_20_mi", "L2_nov20",
   filter(Sample %in% c("L1_nov_dec_20_mi", "L2_nov20",
                        "L2_dez20", "L1_out21", "L2_out21",
                        "L3_out21", "L4_out21", "L1_nov21",
                        "L2_nov21", "L3_nov21", "L1_jan22",
-                       "L2_jan22", "L3_jan22", "L4_jan22"
-                       # ,
-                       # "br_jan_22","EM113_NEGPCR1",
-                       # "EM135c4c5_NEGPCR1",
-                       # "EM135c4c5_NEGPCR2",
-                       # "EM149_NEGPCR1","EM149_NEGPCR2",
-                       # "EM156_NegPCR1", "S724_NEGPCR1"
-                       )) %>% 
-  summarise("Total reads" = sum(`Raw reads (pairs)`),
-            "Mean reads" = mean(`Raw reads (pairs)`),
-            "SD" = sd(`Raw reads (pairs)`))
+                       "L2_jan22", "L3_jan22", "L4_jan22",
+                       "br_jan_22","EM113_NEGPCR1",
+                       "EM135c4c5_NEGPCR1",
+                       "EM135c4c5_NEGPCR2",
+                       "EM149_NEGPCR1","EM149_NEGPCR2",
+                       "EM156_NegPCR1", "S724_NEGPCR1")) %>% 
+  summarise("Total reads" = sum(`Raw reads (pairs)`))
 
-seq_read_counts <- seq_read_counts %>% select(Unique_File_name,Project, Type, Sample)
+seq_read_counts
 ```
 
 ### Number of reads after post-pipeline and filtering
@@ -868,25 +867,26 @@ grouped_filt_stats <-
 
     ```{r}
     # Mean and SD of alpha-diversity
-    grouped_filt_site <- 
-      grouped_filt_tbl %>%
-      group_by(Level, Site) %>% 
-      mutate(
-        "Diversity" = length(unique(`Curated ID`))) %>%
+    grouped_filt_site_stx_vs_mce <- 
+      grouped_filt_tbl_stx_vs_mce %>%
+      # group_by(Level, Site) %>% 
+      group_by(Filter, Site) %>%
+      mutate("Diversity" = length(unique(`Curated ID`))) %>%
       ungroup() %>% 
-      select(Level, Site, Diversity) %>% 
+      # select(Level, Site, Diversity) %>% 
+      select(Filter, Site, Diversity) %>% 
       unique() %>% 
-      group_by(Level) %>% 
-      mutate(
-        "Mean" = mean(Diversity),
-        "SD" = sd(Diversity))
+      # group_by(Level) %>%
+      group_by(Filter) %>%
+      mutate("Mean" = mean(Diversity),
+             "SD" = sd(Diversity))
 
     # Exporting table for the paper
-    write.csv(grouped_filt_site, 
-              paste0(tbl_path, "/grouped_filt_site", "-",
-                     Sys.Date(), ".csv", sep = ""))
+    # write.csv(grouped_filt_site, 
+    #           paste0(tbl_path, "/grouped_filt_site", "-",
+    #                  Sys.Date(), ".csv", sep = ""))
 
-    grouped_filt_site
+    grouped_filt_site_stx_vs_mce
     ```
 
 ## Exploratory data assesment
@@ -937,8 +937,8 @@ nspp_level <-
 
     ```{r}
     # Group final filtered data by curated taxonomic identification
-    id_level <- grouped_filt_tbl %>%
-      group_by(`Curated ID`) %>%
+    id_level <- grouped_filt_tbl_stx_vs_mce %>%
+      group_by(`Curated ID`, Filter) %>%
       reframe("Order" = Order,
               "Family" = Family,
               "Genus" = Genus,
@@ -948,12 +948,12 @@ nspp_level <-
               "OTUs" = sum(OTUs)) %>%
       unique() %>%
       select("Order", "Family", "Genus",
-             "Curated identification",
+             "Curated identification", "Filter",
              "Reads", "ASVs","OTUs") 
 
     # Exporting table for the paper
-    write.csv(id_level, paste0(tbl_path, "/id_level_tbl", "-",
-                               Sys.Date(), ".csv", sep = ""))
+    # write.csv(id_level, paste0(tbl_path, "/id_level_tbl", "-",
+    #                            Sys.Date(), ".csv", sep = ""))
 
     id_level
     ```
@@ -1281,21 +1281,21 @@ grouped_by_Sample <-
     ```{r}
     # Defining order and species levels for factor ordering
 
-    order_levels <- 
-      grouped_filt_tbl$Order %>% 
+    order_levels_stx_vs_mce <- 
+      grouped_filt_tbl_stx_vs_mce$Order %>% 
       sort() %>% 
       unique()
 
-    spp_levels <- 
-      grouped_filt_tbl$`Curated ID` %>% 
+    spp_levels_stx_vs_mce <- 
+      grouped_filt_tbl_stx_vs_mce$`Curated ID` %>% 
       sort() %>% 
       unique()
       
     # Tile plot for all years 
-    tile_all <- 
-      grouped_filt_tbl %>%
+    tile_all_stx_vs_mce <- 
+      grouped_filt_tbl_stx_vs_mce %>%
       mutate(`Curated ID` = factor(`Curated ID`, 
-                               levels = rev(spp_levels)),
+                               levels = rev(spp_levels_stx_vs_mce)),
          Site = factor(Site),
          Year_Level = case_when(Year == "2020" ~ "High",
                                 Year == "2021" ~ "Low",
@@ -1307,17 +1307,30 @@ grouped_by_Sample <-
                                 Order == "Siluriformes" ~
                                    "Sil",
                                 Order == "Cyprinodontiformes" ~
-                                  "Cypr"),
+                                  "Cyprino",
+                                Order == "Clupeiformes" ~
+                                  "Clup",
+                                Order == "Cypriniformes" ~
+                                  "Cyprini",
+                                Order == "Gymnotiformes" ~
+                                  "Gymno",
+                                Order == "Synbranchiformes" ~
+                                  "Synb",
+                                ),
          Order_abrev = factor(Order_abrev, 
                               levels = c("Char", 
                                          "Cich",
-                                         "Cypr", 
-                                         "Sil"))) %>%
+                                         "Clup",
+                                         "Cyprini", 
+                                         "Cyprino",
+                                         "Gymno",
+                                         "Sil",
+                                         "Synb"))) %>%
       ggplot(aes(y = `Curated ID`,
              x = Site,
              fill = RRA)) +
       geom_tile() +
-      facet_grid(cols = vars(Year_Level),
+      facet_grid(cols = vars(Filter),
              rows = vars(Order_abrev),
              space = "free",
              scales = "free",
@@ -1348,9 +1361,10 @@ grouped_by_Sample <-
                                     margin = margin(b = 10),
                                     color = "black"),
         strip.background = element_rect(fill = "#e4e4e4"),
-        strip.text = element_text(size = 17, 
+        strip.text = element_text(size = 20, 
                                   face = "bold", 
                                   color = "black"),
+        strip.text.y = element_text(angle = 0),
         axis.text.x = element_text(size = 15),
         axis.text.y = element_text(size = 17, 
                                    face = "italic"),
@@ -1363,7 +1377,7 @@ grouped_by_Sample <-
        y = "Taxa")
 
     # Exporting plot for the paper
-    ggsave(plot = tile_all,
+    ggsave(plot = tile_all_stx_vs_mce,
        filename = paste0(figs_path, "/tile_20-22", "-",
                          Sys.Date(), ".pdf", sep = ""),
        units = "cm",
@@ -1371,7 +1385,7 @@ grouped_by_Sample <-
        width = 25.5,
        dpi = 600)
 
-    tile_all
+    tile_all_stx_vs_mce
     ```
 
 ### Alpha diversity
@@ -1637,7 +1651,7 @@ grouped_by_Sample <-
 # PCoA Data Preparation ----
 
 # Create a new sample identifier by combining Site, Level, and Year
-wider_filt_tbl_redux <- grouped_filt_tbl %>%
+wider_filt_tbl_redux <- grouped_filt_tbl_stx_vs_mce %>%
   mutate(RRA = round(RRA,
                      digits = 4)) %>%
   ungroup() %>%
@@ -1702,8 +1716,8 @@ MCE_all_IDs_PCoA_df <- all_IDs_PCoA_df_rare %>%
   select(where(~ any(. != 0)))
 
 # Rarefy community data and create distance matrix 
-pcOa_dist <- avgdist(x = MCE_all_IDs_PCoA_df[,8:ncol(MCE_all_IDs_PCoA_df)],
-                     sample = min(rowSums(MCE_all_IDs_PCoA_df[,8:ncol(MCE_all_IDs_PCoA_df)])), # Min number of reads
+pcOa_dist <- avgdist(x = MCE_all_IDs_PCoA_df[,7:ncol(MCE_all_IDs_PCoA_df)],
+                     sample = min(colSums(MCE_all_IDs_PCoA_df[,8:ncol(MCE_all_IDs_PCoA_df)])), # Min number of reads
                      dmethod = "jaccard",
                      iterations = 1000, # Number of resamplings
                      binary = TRUE) # Transforms counts to presence/absence to calculate qualitative 
@@ -1747,17 +1761,18 @@ site.scrs <- site.scrs %>%
   mutate("Sample number" = as.double(row.names(.))) %>%
   left_join(y = MCE_all_IDs_PCoA_df[, c("Sample number",
                                         "New_sample",
+                                        "Filter", 
                                         "Level", 
                                         "Site")], 
             by = "Sample number")
 
-cent <- aggregate(cbind(PCoA1, PCoA2) ~ Level, 
+cent <- aggregate(cbind(PCoA1, PCoA2) ~ Filter, 
                   data = site.scrs, 
                   FUN = "mean")
 
 # Calculate ellipses for plotting
 ord <- ordiellipse(ord = pcOa,
-                   groups = MCE_all_IDs_PCoA_df$Level,
+                   groups = MCE_all_IDs_PCoA_df$Filter,
                    display = "sites",
                    kind = "ehull", 
                    conf = 0.95, 
@@ -1765,8 +1780,8 @@ ord <- ordiellipse(ord = pcOa,
 
 df_ell <- data.frame() 
 
-for(g in levels(as.factor(MCE_all_IDs_PCoA_df$Level))){
-  df_ell <- rbind(df_ell,cbind(as.data.frame(with(site.scrs[site.scrs$Level==g,],vegan:::veganCovEllipse(
+for(g in levels(as.factor(MCE_all_IDs_PCoA_df$Filter))){
+  df_ell <- rbind(df_ell,cbind(as.data.frame(with(site.scrs[site.scrs$Filter==g,],vegan:::veganCovEllipse(
     ord[[g]]$cov,ord[[g]]$center,ord[[g]]$scale))),Level=g))
 }
 ```
@@ -1778,8 +1793,8 @@ for(g in levels(as.factor(MCE_all_IDs_PCoA_df$Level))){
 ```{r}
 percent_pcOa <- pcOa$eig / sum(pcOa$eig) * 100
 
-cores <- c("High" = "#3381b1", 
-           "Low" = "#E63946")
+cores <- c("Sterivex" = "#d1e2ed", 
+           "MCE" = "#fcf1d1")
 
 PCoA_MCE_2 <- 
   ggplot(data = site.scrs, 
@@ -1787,26 +1802,26 @@ PCoA_MCE_2 <-
   # Ellipses
   ggforce::geom_mark_ellipse(data = df_ell,
                              aes(x = Dim1, 
-                                 y = Dim2, group = Level,
-                                 label = Level, 
-                                 col = Level, fill = Level),
+                                 y = Dim2, group = Filter,
+                                 label = Filter, 
+                                 col = Filter, fill = Filter),
                              inherit.aes = FALSE,
                              alpha=0.10, linetype=2, 
                              expand = 0, label.fontsize = 20,
                              con.cap = 0.1) +
   # Sample points
-  geom_point(aes(fill = Level, 
-                 col=Level, 
-                 group = Level, 
+  geom_point(aes(fill = Filter, 
+                 col=Filter, 
+                 group = Filter, 
                  shape = Site), 
              stroke = 0.5, 
              alpha = 0.75, 
              size = 3) +
   # Sample labels
   ggrepel::geom_text_repel(aes(label = Site), 
-                           size = 6, direction = "both",
+                           size=6, direction = "both",
                            segment.size = 0.25,
-                           segment.alpha = 0.1, force = 3,
+                           segment.alpha=0.1, force = 3,
                            max.overlaps = 100, 
                            fontface = "bold") +
   # Species vectors
@@ -1817,8 +1832,8 @@ PCoA_MCE_2 <-
                colour = "grey30", alpha = 0.5, lwd = 0.3) +
   # Species labels
   geom_text_repel(data = sig.spp.scrs, 
-                  aes(x = Dim1, y = Dim2, label = IDs),
-                  size = 3.5, alpha = 1, 
+                  aes(x=Dim1, y=Dim2, label = IDs),
+                  size = 3.5, alpha = 0.75, 
                   segment.size = 0.25, 
                   segment.alpha = 0.1, 
                   max.overlaps = 25) +
@@ -1826,7 +1841,7 @@ PCoA_MCE_2 <-
   geom_point(data = cent, 
              aes(x = PCoA1, 
                  y = PCoA2, 
-                 fill = Level),
+                 fill = Filter),
              size = 8, 
              colour = "#222222",
              alpha = 0.75, 
@@ -1847,8 +1862,6 @@ PCoA_MCE_2 <-
   scale_fill_manual(values = cores) +
   scale_colour_manual(values = cores)
 
-PCoA_MCE_2
-
 # Exporting plot for the paper
 ggsave(plot = PCoA_MCE_2, 
        filename = paste0(figs_path, "/PCoA_all", "-",
@@ -1858,7 +1871,7 @@ ggsave(plot = PCoA_MCE_2,
        width = 16.75, 
        dpi = 600)
 
-
+PCoA_MCE_2
 ```
 
 ### PERMANOVA
@@ -1964,7 +1977,9 @@ ggsave(plot = PCoA_MCE_2,
       scale_color_manual(values = c("All" = "#2A6B33", 
                                     "Low" = "#E63946", 
                                     "High" = "#457B9D"),
-                         labels = c("All" = "All samples")) +
+                         labels = c("All" = "All samples", 
+                                    "Low" = "Low-level", 
+                                    "High" = "High-level")) +
       scale_x_continuous(breaks =seq(0,
                                      max(combined_accum$Sites),
                                      by = 3)) +
@@ -1975,7 +1990,9 @@ ggsave(plot = PCoA_MCE_2,
                          arrange(desc(Sites)) %>% 
                          distinct(Level, .keep_all = TRUE),
                        aes(label = recode(Level, 
-                                          "All" = "All samples"),
+                                          "All" = "All samples",
+                                          "Low" = "Low-level",
+                                          "High" = "High-level"),
                            color = Level),
                            size = 7, 
                        fontface = "bold", 
